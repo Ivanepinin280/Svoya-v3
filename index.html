@@ -211,7 +211,7 @@
 /* =========================================================
    CONFIG
 ========================================================= */
-const API_URL = 'https://script.google.com/macros/s/AKfycbxMqrMTP_aRWWAqknhof6MQDBxTMpsCWGIKEDhC_TqQ1lwglJCYg_yKw-B2uteLVCZy/exec';
+const API_URL = 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE';
 
 const DELIVERY_TIERS = [
   { upTo: 1,    fee: 30000 },
@@ -245,10 +245,25 @@ let state = {
 const CS_KEY_FAV = 'sk_favorites';
 const CS_KEY_CART = 'sk_cart';
 
+// CloudStorage requires Bot API 6.9+. Outside real Telegram (plain browser testing)
+// or on older Telegram clients, calling it throws synchronously — always fall back
+// to localStorage safely instead of letting that break app init.
+function cloudStorageSupported(){
+  try {
+    return !!(tg && tg.CloudStorage && tg.isVersionAtLeast && tg.isVersionAtLeast('6.9'));
+  } catch(e){ return false; }
+}
 function csGet(key){
   return new Promise(resolve => {
-    if (tg && tg.CloudStorage) {
-      tg.CloudStorage.getItem(key, (err, value) => resolve(!err && value ? JSON.parse(value) : null));
+    if (cloudStorageSupported()) {
+      try {
+        tg.CloudStorage.getItem(key, (err, value) => {
+          if (err || !value) { resolve(null); return; }
+          try { resolve(JSON.parse(value)); } catch(e){ resolve(null); }
+        });
+      } catch(e){
+        try { resolve(JSON.parse(localStorage.getItem(key))); } catch(e2){ resolve(null); }
+      }
     } else {
       try { resolve(JSON.parse(localStorage.getItem(key))); } catch(e){ resolve(null); }
     }
@@ -256,8 +271,12 @@ function csGet(key){
 }
 function csSet(key, value){
   const str = JSON.stringify(value);
-  if (tg && tg.CloudStorage) { tg.CloudStorage.setItem(key, str); }
-  else { localStorage.setItem(key, str); }
+  if (cloudStorageSupported()) {
+    try { tg.CloudStorage.setItem(key, str); }
+    catch(e){ localStorage.setItem(key, str); }
+  } else {
+    localStorage.setItem(key, str);
+  }
 }
 
 /* =========================================================
@@ -282,23 +301,32 @@ async function apiPost(action, payload){
    INIT
 ========================================================= */
 async function init(){
-  state.favorites = (await csGet(CS_KEY_FAV)) || [];
-  state.cart = (await csGet(CS_KEY_CART)) || [];
-
   try {
-    const menuRes = await apiGet('getMenu');
-    if (menuRes.ok) {
-      state.items = menuRes.data.items;
-      state.addons = menuRes.data.addons;
-      state.restaurant = menuRes.data.restaurant;
-      document.getElementById('hoursLine').textContent =
-        `${menuRes.data.hours.weekday} · ${menuRes.data.hours.weekend}`;
-    }
-  } catch(e){ console.error(e); }
+    state.favorites = (await csGet(CS_KEY_FAV)) || [];
+    state.cart = (await csGet(CS_KEY_CART)) || [];
 
-  renderTab();
-  updateCartBadge();
-  document.getElementById('splash').classList.add('hide');
+    try {
+      const menuRes = await apiGet('getMenu');
+      if (menuRes.ok) {
+        state.items = menuRes.data.items;
+        state.addons = menuRes.data.addons;
+        state.restaurant = menuRes.data.restaurant;
+        document.getElementById('hoursLine').textContent =
+          `${menuRes.data.hours.weekday} · ${menuRes.data.hours.weekend}`;
+      } else {
+        showToast('Ошибка загрузки меню');
+      }
+    } catch(e){ console.error(e); showToast('Не удалось связаться с сервером'); }
+
+    renderTab();
+    updateCartBadge();
+  } catch(e){
+    console.error('init() failed:', e);
+  } finally {
+    // Always hide the splash, even if something above failed, so the app
+    // is never stuck on a frozen loading screen.
+    document.getElementById('splash').classList.add('hide');
+  }
 }
 
 /* =========================================================
@@ -723,13 +751,29 @@ function openCheckout(){
       recompute();
     }
 
-    if (tg && tg.LocationManager) {
-      tg.LocationManager.init(() => {
-        tg.LocationManager.getLocation((loc) => {
-          if (loc) applyPoint(loc.latitude, loc.longitude);
-          else status.textContent = 'Не удалось получить геопозицию. Введите адрес вручную и вставьте ссылку из Google Maps в комментарий.';
+    const locationManagerOk = (() => {
+      try { return !!(tg && tg.LocationManager && tg.isVersionAtLeast && tg.isVersionAtLeast('8.0')); }
+      catch(e){ return false; }
+    })();
+
+    if (locationManagerOk) {
+      try {
+        tg.LocationManager.init(() => {
+          tg.LocationManager.getLocation((loc) => {
+            if (loc) applyPoint(loc.latitude, loc.longitude);
+            else status.textContent = 'Не удалось получить геопозицию. Введите адрес вручную и вставьте ссылку из Google Maps в комментарий.';
+          });
         });
-      });
+      } catch(e) {
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            pos => applyPoint(pos.coords.latitude, pos.coords.longitude),
+            () => { status.textContent = 'Геолокация недоступна. Вставьте ссылку на карту в комментарий.'; }
+          );
+        } else {
+          status.textContent = 'Геолокация недоступна на этом устройстве.';
+        }
+      }
     } else if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         pos => applyPoint(pos.coords.latitude, pos.coords.longitude),
