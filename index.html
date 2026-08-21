@@ -211,7 +211,7 @@
 /* =========================================================
    CONFIG
 ========================================================= */
-const API_URL = 'https://script.google.com/macros/s/AKfycbxMqrMTP_aRWWAqknhof6MQDBxTMpsCWGIKEDhC_TqQ1lwglJCYg_yKw-B2uteLVCZy/exec';
+const API_URL = 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE';
 
 const DELIVERY_TIERS = [
   { upTo: 1,    fee: 30000 },
@@ -616,8 +616,13 @@ function renderCart(){
     csSet(CS_KEY_CART, state.cart); updateCartBadge(); renderCart();
   }));
   sheet.querySelector('#toCheckoutBtn').addEventListener('click', () => {
-    closeOverlay('cartOverlay');
-    openCheckout();
+    try {
+      closeOverlay('cartOverlay');
+      openCheckout();
+    } catch(e) {
+      console.error('Ошибка при открытии оформления заказа:', e);
+      showToast('Ошибка: ' + e.message);
+    }
   });
 }
 
@@ -648,6 +653,7 @@ function renderCart(){
     fab.style.left = newX + 'px'; fab.style.top = newY + 'px';
   }
   function pointerUp(){
+    if (!dragging) return; // only act if a drag actually started on the fab itself
     dragging = false;
     if (!moved) { renderCart(); document.getElementById('cartOverlay').classList.add('open'); }
   }
