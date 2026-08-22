@@ -606,7 +606,7 @@ async function renderTab(){
 
   if (state.activeTab === 'combo') {
     comboBanner.style.display = 'flex';
-    comboBanner.innerHTML = `${ICONS.percentBadge}<span>Блюда из этой вкладки автоматически получают <b>скидку 10%</b> в корзине (без учёта доставки).</span>`;
+    comboBanner.innerHTML = `${ICONS.percentBadge}<span>Выберите минимум <b>${COMBO_MIN_ITEMS} блюда</b> из этой вкладки — вся сумма за них в корзине получит <b>скидку 10%</b> (без учёта доставки).</span>`;
   } else {
     comboBanner.style.display = 'none';
   }
@@ -827,7 +827,15 @@ function updateCartBadge(){
   updateCartBadge._last = count;
 }
 
+function pluralDish(n){
+  const n10 = n % 10, n100 = n % 100;
+  if (n10 === 1 && n100 !== 11) return 'блюдо';
+  if ([2,3,4].includes(n10) && ![12,13,14].includes(n100)) return 'блюда';
+  return 'блюд';
+}
+
 const COMBO_DISCOUNT_RATE = 0.10;
+const COMBO_MIN_ITEMS = 4; // discount only kicks in once at least this many combo-tagged dishes are in the cart
 
 function cartLineTotal(c){ return (c.price + (c.addon_extra||0)) * c.qty; }
 function cartOriginalSubtotal(){
@@ -836,7 +844,14 @@ function cartOriginalSubtotal(){
 function cartComboEligibleSubtotal(){
   return state.cart.filter(c => c.is_combo).reduce((s,c) => s + cartLineTotal(c), 0);
 }
+function cartComboItemCount(){
+  return state.cart.filter(c => c.is_combo).reduce((s,c) => s + c.qty, 0);
+}
+function cartComboThresholdMet(){
+  return cartComboItemCount() >= COMBO_MIN_ITEMS;
+}
 function cartComboDiscount(){
+  if (!cartComboThresholdMet()) return 0;
   return Math.round(cartComboEligibleSubtotal() * COMBO_DISCOUNT_RATE);
 }
 // The discounted total — this is what gets charged for dishes (delivery is added on top, unaffected).
@@ -851,10 +866,16 @@ function renderCart(){
     return;
   }
   const discount = cartComboDiscount();
+  const comboCount = cartComboItemCount();
+  const comboProgress = comboCount > 0 && !cartComboThresholdMet();
   sheet.innerHTML = `
     <div class="sheet-handle"></div>
     <div class="font-display" style="font-size:19px;font-weight:700;margin-bottom:14px;">Корзина</div>
     <div id="cartItemsList" style="display:flex;flex-direction:column;gap:14px;"></div>
+    ${comboProgress ? `
+    <div class="combo-banner" style="margin:16px 0 0;">
+      ${ICONS.percentBadge}<span>Добавьте ещё <b>${COMBO_MIN_ITEMS - comboCount}</b> ${pluralDish(COMBO_MIN_ITEMS - comboCount)} из «Собери комбо», чтобы получить скидку 10%.</span>
+    </div>` : ''}
     <div style="background:var(--surface);border-radius:14px;padding:14px 16px;margin-top:20px;">
       <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--ink-soft);">
         <span>Позиций</span><span>${state.cart.reduce((s,c)=>s+c.qty,0)}</span>
@@ -880,7 +901,7 @@ function renderCart(){
     row.innerHTML = `
       <img src="${c.image_url}" style="width:56px;height:56px;border-radius:12px;object-fit:cover;flex-shrink:0;">
       <div style="flex:1;min-width:0;">
-        <div style="font-size:13.5px;font-weight:600;">${c.name}${c.addon ? ' · ' + c.addon : ''}${c.is_combo ? ' <span style="color:var(--accent);font-weight:700;font-size:11px;">· −10%</span>' : ''}</div>
+        <div style="font-size:13.5px;font-weight:600;">${c.name}${c.addon ? ' · ' + c.addon : ''}${c.is_combo ? (discount ? ' <span style="color:var(--accent);font-weight:700;font-size:11px;">· −10%</span>' : ' <span style="color:var(--ink-soft);font-weight:600;font-size:11px;">· комбо</span>') : ''}</div>
         <div style="font-size:12px;color:var(--ink-soft);margin-top:2px;">${((c.price + (c.addon_extra||0))).toLocaleString('ru-RU')} VND</div>
       </div>
       <div class="qty-pill">
@@ -981,6 +1002,8 @@ function openCheckout(){
   const originalSubtotal = cartOriginalSubtotal();
   const comboDiscount = cartComboDiscount();
   const subtotal = cartSubtotal();
+  const comboCount = cartComboItemCount();
+  const comboProgress = comboCount > 0 && !cartComboThresholdMet();
 
   sheet.innerHTML = `
     <div class="sheet-handle"></div>
@@ -1016,6 +1039,7 @@ function openCheckout(){
     <textarea id="fComment" rows="2" placeholder="Например: без острого, позвонить заранее"></textarea>
 
     <div style="margin-top:16px;padding:12px;background:#fff;border-radius:12px;border:1px solid var(--line);">
+      ${comboProgress ? `<div class="combo-banner" style="margin:0 0 12px;">${ICONS.percentBadge}<span>Добавьте ещё <b>${COMBO_MIN_ITEMS - comboCount}</b> ${pluralDish(COMBO_MIN_ITEMS - comboCount)} из «Собери комбо» для скидки 10%.</span></div>` : ''}
       <div style="display:flex;justify-content:space-between;font-size:13px;"><span>Сумма блюд</span><span>${originalSubtotal.toLocaleString('ru-RU')} VND</span></div>
       ${comboDiscount ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px;color:var(--accent);font-weight:600;"><span>Скидка на комбо</span><span>−${comboDiscount.toLocaleString('ru-RU')} VND</span></div>` : ''}
       <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px;"><span>Доставка</span><span id="feeLine">—</span></div>
