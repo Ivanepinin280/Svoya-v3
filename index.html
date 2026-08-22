@@ -6,7 +6,7 @@
 <title>Своя кухня — доставка еды</title>
 <script src="https://telegram.org/js/telegram-web-app.js"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
-<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,700&family=Be+Vietnam+Pro:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
 <style>
   :root{
     --ink: #1D1D1F;         /* near-black text, Apple-style */
@@ -27,7 +27,7 @@
   *{box-sizing:border-box;}
   body{
     margin:0; background:var(--bg); color:var(--ink);
-    font-family:'Be Vietnam Pro', sans-serif;
+    font-family:'Inter', sans-serif;
     -webkit-tap-highlight-color: transparent;
     overscroll-behavior-y: contain;
   }
@@ -59,52 +59,48 @@
     100%{ opacity:0; stroke-dashoffset:0; transform:translateY(-26px); }
   }
 
+  #splash .logo-stage{
+    position:relative; width:172px; height:172px;
+    display:flex; align-items:center; justify-content:center;
+    animation: logoPop .8s cubic-bezier(.2,.9,.25,1.1) both, logoFloat 3.6s ease-in-out .8s infinite;
+  }
+  #splash .progress-ring{
+    position:absolute; inset:0; width:172px; height:172px; transform:rotate(-90deg);
+  }
+  #splash .progress-ring .ring-bg{
+    fill:none; stroke:rgba(255,255,255,0.09); stroke-width:2.5;
+  }
+  #splash .progress-ring .ring-fg{
+    fill:none; stroke:var(--accent); stroke-width:2.5; stroke-linecap:round;
+    stroke-dasharray:490; stroke-dashoffset:490;
+    transition:stroke-dashoffset .35s cubic-bezier(.4,0,.2,1);
+    filter:drop-shadow(0 0 6px rgba(201,154,60,0.55));
+  }
   #splash .logo-wrap{
-    position:relative; width:150px; height:150px; border-radius:50%;
-    box-shadow:0 18px 44px rgba(0,0,0,0.5);
-    animation: logoPop .8s cubic-bezier(.2,.9,.25,1.1) both, logoFloat 3.4s ease-in-out .8s infinite;
+    position:relative; width:144px; height:144px; border-radius:50%;
+    box-shadow:0 18px 44px rgba(0,0,0,0.55);
   }
   #splash .logo-wrap img{ width:100%; height:100%; border-radius:50%; display:block; }
-  #splash .logo-ring{
-    position:absolute; inset:-8px; border-radius:50%;
-    border:1.5px solid rgba(230,197,112,0.55);
-    animation: ringPulse 2.4s ease-out infinite;
-  }
   @keyframes logoPop{
     0%{ opacity:0; transform:scale(.72); }
     100%{ opacity:1; transform:scale(1); }
   }
   @keyframes logoFloat{
     0%,100%{ transform:translateY(0); }
-    50%{ transform:translateY(-7px); }
-  }
-  @keyframes ringPulse{
-    0%{ transform:scale(1); opacity:.9; }
-    100%{ transform:scale(1.38); opacity:0; }
+    50%{ transform:translateY(-6px); }
   }
   #splash .splash-text{
-    color:#fff; margin-top:22px; font-size:13px; letter-spacing:.22em; opacity:0;
+    color:#fff; margin-top:24px; font-size:13px; letter-spacing:.24em; font-weight:600; opacity:0;
     animation: fadeUp .6s ease .5s forwards;
   }
   #splash .splash-sub{
-    color:var(--accent-light); margin-top:6px; font-size:11.5px; letter-spacing:.05em; opacity:0;
+    color:var(--accent-light); margin-top:6px; font-size:12px; letter-spacing:.03em; font-weight:500; opacity:0;
     animation: fadeUp .6s ease .7s forwards;
   }
-  #splash .progress-wrap{
-    margin-top:26px; display:flex; flex-direction:column; align-items:center; gap:10px;
-    opacity:0; animation: fadeUp .6s ease .85s forwards;
-  }
   #splash .progress-percent{
-    font-family:'Fraunces', serif; font-size:20px; font-weight:600; color:#fff;
-    font-variant-numeric:tabular-nums; min-width:52px; text-align:center;
-  }
-  #splash .progress-dots{ display:flex; gap:7px; }
-  #splash .progress-dots .dot{
-    width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,0.18);
-    transition:background .35s ease, transform .35s cubic-bezier(.34,1.56,.64,1);
-  }
-  #splash .progress-dots .dot.filled{
-    background:var(--accent); transform:scale(1.15);
+    position:absolute; bottom:-34px; left:0; right:0; text-align:center;
+    font-family:'Fraunces', serif; font-size:15px; font-weight:600; color:rgba(255,255,255,0.55);
+    font-variant-numeric:tabular-nums; letter-spacing:.02em;
   }
   @keyframes fadeUp{
     0%{ opacity:0; transform:translateY(8px); }
@@ -246,10 +242,11 @@
 
   .primary-btn{
     width:100%; background:var(--ink); color:#fff; font-weight:700; font-size:15px;
-    padding:14px; border-radius:14px; margin-top:16px; display:flex; align-items:center; justify-content:center; gap:8px;
+    padding:15px; border-radius:14px; margin-top:16px; display:flex; align-items:center; justify-content:center; gap:9px;
     transition:transform .15s cubic-bezier(.34,1.56,.64,1), background .2s ease, box-shadow .2s ease;
     box-shadow:0 6px 16px rgba(0,0,0,0.16);
   }
+  .primary-btn svg{ width:19px; height:19px; flex-shrink:0; }
   .primary-btn:active{ transform:scale(.98); }
   .primary-btn:disabled{ background:var(--surface-dim); color:var(--ink-soft); box-shadow:none; transform:none; }
   .secondary-btn{
@@ -262,6 +259,19 @@
   .secondary-btn svg{ width:15px; height:15px; flex-shrink:0; }
 
   .empty-state{ text-align:center; padding:60px 24px; color:var(--ink-soft); }
+  .link-toggle{
+    display:flex; align-items:center; gap:5px; background:none; border:none; padding:8px 2px 4px;
+    font-size:12.5px; font-weight:600; color:var(--ink-soft); width:100%; text-align:left;
+  }
+  .link-toggle svg{ width:13px; height:13px; transition:transform .25s ease; flex-shrink:0; }
+  .link-toggle.open svg{ transform:rotate(180deg); }
+  .manual-geo-panel{
+    margin-top:4px; padding:12px; background:var(--surface); border-radius:12px;
+    overflow:hidden; max-height:0; opacity:0; transition:max-height .3s ease, opacity .25s ease, padding .3s ease;
+  }
+  .manual-geo-panel.open{ max-height:260px; opacity:1; }
+  .manual-geo-panel input{ background:#fff; }
+  .manual-geo-hint{ font-size:11px; color:var(--ink-soft); margin-top:8px; line-height:1.45; }
   .toast{
     position:fixed; bottom:22px; left:50%; transform:translateX(-50%);
     background:var(--ink); color:#fff; padding:11px 18px; border-radius:999px;
@@ -279,21 +289,22 @@
     <path d="M100 145 C 90 122, 112 112, 104 92 C 97 74, 114 64, 110 46"/>
     <path d="M130 140 C 120 120, 140 110, 132 90 C 126 74, 142 66, 138 50"/>
   </svg>
-  <div class="logo-wrap">
-    <div class="logo-ring"></div>
-    <img src="logo.png" alt="Своя кухня">
+  <div class="logo-stage">
+    <svg class="progress-ring" viewBox="0 0 172 172">
+      <circle class="ring-bg" cx="86" cy="86" r="78"/>
+      <circle class="ring-fg" id="splashRing" cx="86" cy="86" r="78"/>
+    </svg>
+    <div class="logo-wrap">
+      <img src="logo.png" alt="Своя кухня">
+    </div>
+    <div class="progress-percent" id="splashPercent">0%</div>
   </div>
   <div class="splash-text">СВОЯ КУХНЯ</div>
   <div class="splash-sub">доставка домашней еды</div>
-  <div class="progress-wrap">
-    <div class="progress-percent" id="splashPercent">0%</div>
-    <div class="progress-dots" id="splashDots">
-      <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
-    </div>
-  </div>
 </div>
 
 <header class="app-header">
+
   <div class="header-logo"><img src="logo.png" alt="Своя кухня"></div>
   <div class="header-text">
     <div class="brand-title font-display">Своя кухня</div>
@@ -346,7 +357,9 @@ const ICONS = {
   boxOff: `<svg viewBox="0 0 24 24" fill="none"><path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5v-9Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="m8.5 9 7 6M15.5 9l-7 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`,
   pin: `<svg viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="9.5" r="2.4" stroke="currentColor" stroke-width="1.8"/></svg>`,
   warning: `<svg viewBox="0 0 24 24" fill="none"><path d="M12 3.5 21.5 20h-19L12 3.5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 9.5v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="17.2" r="1" fill="currentColor"/></svg>`,
-  errorCircle: `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="m9 9 6 6M15 9l-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`
+  errorCircle: `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="m9 9 6 6M15 9l-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
+  chevronDown: `<svg viewBox="0 0 24 24" fill="none"><path d="m6 9 6 6 6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  check: `<svg viewBox="0 0 24 24" fill="none"><path d="m5 12.5 5 5L19 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`
 };
 
 
@@ -439,13 +452,13 @@ async function apiPost(action, payload){
 /* =========================================================
    INIT
 ========================================================= */
+const SPLASH_RING_CIRCUMFERENCE = 2 * Math.PI * 78; // r=78, matches the SVG circle
 function setSplashProgress(p){
   p = Math.max(0, Math.min(100, Math.round(p)));
   const pctEl = document.getElementById('splashPercent');
   if (pctEl) pctEl.textContent = p + '%';
-  document.querySelectorAll('#splashDots .dot').forEach((d, i) => {
-    d.classList.toggle('filled', p >= (i + 1) * 20);
-  });
+  const ring = document.getElementById('splashRing');
+  if (ring) ring.style.strokeDashoffset = SPLASH_RING_CIRCUMFERENCE * (1 - p / 100);
 }
 
 async function init(){
@@ -895,6 +908,15 @@ function openCheckout(){
     <button type="button" class="secondary-btn" id="geoBtn">${ICONS.pin}Отправить мою геопозицию</button>
     <div id="geoStatus" style="font-size:12px;color:var(--ink-soft);margin-top:6px;"></div>
 
+    <button type="button" class="link-toggle" id="manualToggle">${ICONS.chevronDown}Не получилось? Указать точку вручную</button>
+    <div class="manual-geo-panel" id="manualGeoPanel">
+      <label class="field-label" style="margin-top:0;">Ссылка на карту или координаты</label>
+      <input id="fManualGeo" placeholder="Ссылка из Google Maps или «12.234, 109.195»">
+      <button type="button" class="secondary-btn" id="manualGeoConfirm" style="margin-top:8px;">${ICONS.check}Подтвердить точку</button>
+      <div id="manualGeoStatus" style="font-size:12px;color:var(--ink-soft);margin-top:6px;"></div>
+      <div class="manual-geo-hint">Откройте вашу точку в Google Maps → «Поделиться» → «Копировать ссылку» и вставьте её сюда. Либо скопируйте координаты (долгое нажатие на точку на карте) в формате «широта, долгота».</div>
+    </div>
+
     <label class="field-label">Комментарий к заказу</label>
     <textarea id="fComment" rows="2" placeholder="Например: без острого, позвонить заранее"></textarea>
 
@@ -921,29 +943,58 @@ function openCheckout(){
       btn.disabled = false; btn.textContent = 'Заказать';
     } else {
       btn.disabled = true;
-      btn.textContent = !phoneOk ? 'Укажите корректный телефон' : (!point ? 'Отправьте геопозицию' : 'Укажите адрес');
+      btn.textContent = !phoneOk ? 'Укажите корректный телефон' : (!point ? 'Укажите точку на карте' : 'Укажите адрес');
     }
   }
 
   sheet.querySelector('#fAddress').addEventListener('input', recompute);
   sheet.querySelector('#fPhone').addEventListener('input', recompute);
 
+  function statusHtml(icon, color, text){
+    return `<span style="display:flex;gap:6px;align-items:flex-start;"><span style="flex-shrink:0;width:13px;height:13px;color:${color};margin-top:1px;">${icon}</span><span>${text}</span></span>`;
+  }
+  function applyPoint(lat, lng, sourceLabel){
+    point = { lat, lng };
+    state.deliveryPoint = point;
+    const km = (state.restaurant.lat && state.restaurant.lng)
+      ? haversine(state.restaurant.lat, state.restaurant.lng, lat, lng)
+      : 0;
+    deliveryFee = deliveryFeeForDistance(km);
+    sheet.querySelector('#feeLine').textContent = deliveryFee.toLocaleString('ru-RU') + ' VND';
+    const msg = `${sourceLabel || 'Геопозиция получена'} (~${km.toFixed(1)} км от кухни). Ссылка: maps.google.com/?q=${lat.toFixed(5)},${lng.toFixed(5)}`;
+    sheet.querySelector('#geoStatus').innerHTML = statusHtml(ICONS.pin, 'var(--accent)', msg);
+    recompute();
+  }
+  function parseManualGeo(text){
+    const match = text.match(/(-?\d{1,3}\.\d{3,})\s*,\s*(-?\d{1,3}\.\d{3,})/);
+    if (!match) return null;
+    const lat = parseFloat(match[1]), lng = parseFloat(match[2]);
+    if (isNaN(lat) || isNaN(lng) || Math.abs(lat) > 90 || Math.abs(lng) > 180) return null;
+    return { lat, lng };
+  }
+
+  sheet.querySelector('#manualToggle').addEventListener('click', () => {
+    const panel = sheet.querySelector('#manualGeoPanel');
+    const btn = sheet.querySelector('#manualToggle');
+    const willOpen = !panel.classList.contains('open');
+    panel.classList.toggle('open', willOpen);
+    btn.classList.toggle('open', willOpen);
+  });
+
+  sheet.querySelector('#manualGeoConfirm').addEventListener('click', () => {
+    const raw = sheet.querySelector('#fManualGeo').value.trim();
+    const manualStatus = sheet.querySelector('#manualGeoStatus');
+    const parsed = parseManualGeo(raw);
+    if (!parsed) {
+      manualStatus.innerHTML = statusHtml(ICONS.errorCircle, '#C0392B', 'Не удалось распознать координаты. Вставьте ссылку из Google Maps целиком или координаты в формате «широта, долгота».');
+      return;
+    }
+    applyPoint(parsed.lat, parsed.lng, 'Точка подтверждена вручную');
+    manualStatus.innerHTML = statusHtml(ICONS.check, 'var(--accent)', 'Готово — координаты приняты.');
+  });
+
   sheet.querySelector('#geoBtn').addEventListener('click', () => {
     const status = sheet.querySelector('#geoStatus');
-    function statusHtml(icon, color, text){
-      return `<span style="display:flex;gap:6px;align-items:flex-start;"><span style="flex-shrink:0;width:13px;height:13px;color:${color};margin-top:1px;">${icon}</span><span>${text}</span></span>`;
-    }
-    function applyPoint(lat, lng){
-      point = { lat, lng };
-      state.deliveryPoint = point;
-      const km = (state.restaurant.lat && state.restaurant.lng)
-        ? haversine(state.restaurant.lat, state.restaurant.lng, lat, lng)
-        : 0;
-      deliveryFee = deliveryFeeForDistance(km);
-      sheet.querySelector('#feeLine').textContent = deliveryFee.toLocaleString('ru-RU') + ' VND';
-      status.innerHTML = statusHtml(ICONS.pin, 'var(--accent)', `Геопозиция получена (~${km.toFixed(1)} км от кухни). Ссылка: maps.google.com/?q=${lat.toFixed(5)},${lng.toFixed(5)}`);
-      recompute();
-    }
 
     const locationManagerOk = (() => {
       try { return !!(tg && tg.LocationManager && tg.isVersionAtLeast && tg.isVersionAtLeast('8.0')); }
@@ -958,9 +1009,7 @@ function openCheckout(){
               applyPoint(loc.latitude, loc.longitude);
             } else {
               status.innerHTML = statusHtml(ICONS.errorCircle, '#C0392B',
-                'Доступ к геопозиции не разрешён. Чтобы оформить заказ, нужно разрешить доступ: ' +
-                'откройте настройки Telegram → Конфиденциальность → или переоткройте это приложение и нажмите «Разрешить», когда появится запрос. ' +
-                'Либо укажите точный адрес в поле выше и напишите координаты (можно скопировать из Google Maps) в комментарии к заказу.');
+                'Доступ к геопозиции не разрешён. Разрешите доступ в настройках Telegram, либо воспользуйтесь ручным вводом ниже.');
             }
           });
         });
@@ -968,19 +1017,19 @@ function openCheckout(){
         if (navigator.geolocation) {
           navigator.geolocation.getCurrentPosition(
             pos => applyPoint(pos.coords.latitude, pos.coords.longitude),
-            () => { status.innerHTML = statusHtml(ICONS.errorCircle, '#C0392B', 'Доступ к геолокации запрещён в браузере. Разрешите его в настройках сайта или укажите координаты в комментарии.'); }
+            () => { status.innerHTML = statusHtml(ICONS.errorCircle, '#C0392B', 'Доступ к геолокации запрещён в браузере. Разрешите его в настройках сайта, либо воспользуйтесь ручным вводом ниже.'); }
           );
         } else {
-          status.textContent = 'Геолокация недоступна на этом устройстве. Укажите точный адрес и, если можете, координаты в комментарии.';
+          status.textContent = 'Геолокация недоступна на этом устройстве. Воспользуйтесь ручным вводом ниже.';
         }
       }
     } else if (navigator.geolocation) {
       navigator.geolocation.getCurrentPosition(
         pos => applyPoint(pos.coords.latitude, pos.coords.longitude),
-        () => { status.innerHTML = statusHtml(ICONS.errorCircle, '#C0392B', 'Доступ к геолокации запрещён. Разрешите его в настройках браузера/Telegram или укажите координаты в комментарии.'); }
+        () => { status.innerHTML = statusHtml(ICONS.errorCircle, '#C0392B', 'Доступ к геолокации запрещён. Разрешите его в настройках браузера/Telegram, либо воспользуйтесь ручным вводом ниже.'); }
       );
     } else {
-      status.textContent = 'Геолокация недоступна на этом устройстве.';
+      status.textContent = 'Геолокация недоступна на этом устройстве. Воспользуйтесь ручным вводом ниже.';
     }
   });
 
