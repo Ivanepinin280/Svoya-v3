@@ -90,6 +90,22 @@
     color:var(--accent-light); margin-top:6px; font-size:11.5px; letter-spacing:.05em; opacity:0;
     animation: fadeUp .6s ease .7s forwards;
   }
+  #splash .progress-wrap{
+    margin-top:26px; display:flex; flex-direction:column; align-items:center; gap:10px;
+    opacity:0; animation: fadeUp .6s ease .85s forwards;
+  }
+  #splash .progress-percent{
+    font-family:'Fraunces', serif; font-size:20px; font-weight:600; color:#fff;
+    font-variant-numeric:tabular-nums; min-width:52px; text-align:center;
+  }
+  #splash .progress-dots{ display:flex; gap:7px; }
+  #splash .progress-dots .dot{
+    width:8px; height:8px; border-radius:50%; background:rgba(255,255,255,0.18);
+    transition:background .35s ease, transform .35s cubic-bezier(.34,1.56,.64,1);
+  }
+  #splash .progress-dots .dot.filled{
+    background:var(--accent); transform:scale(1.15);
+  }
   @keyframes fadeUp{
     0%{ opacity:0; transform:translateY(8px); }
     100%{ opacity:1; transform:translateY(0); }
@@ -154,8 +170,8 @@
   .card .name{ font-weight:600; font-size:13.5px; line-height:1.25; }
   .card .desc{ font-size:11.5px; color:var(--ink-soft); margin-top:2px; height:28px; overflow:hidden; }
   .card .price{ font-family:'Fraunces',serif; font-weight:700; color:var(--ink); font-size:14.5px; margin-top:6px; }
-  .card .add-row{ display:flex; align-items:center; justify-content:space-between; margin-top:8px; gap:6px; }
-  .qty-pill{ display:flex; align-items:center; gap:6px; background:var(--surface); border-radius:999px; padding:3px; }
+  .card .add-row{ display:flex; flex-direction:column; align-items:stretch; gap:7px; margin-top:8px; }
+  .qty-pill{ display:flex; align-items:center; justify-content:center; gap:10px; background:var(--surface); border-radius:999px; padding:4px; align-self:center; }
   .qty-pill button{
     width:24px; height:24px; border-radius:50%; background:var(--ink); color:#fff;
     display:flex; align-items:center; justify-content:center; transition:transform .15s ease, background .2s ease;
@@ -182,6 +198,7 @@
     40%{ transform:scale(1.14); filter:brightness(1.1); }
     100%{ transform:scale(1); }
   }
+  .card .add-btn{ width:100%; justify-content:center; }
 
   /* ---------- Floating cart ---------- */
   #cartFab{
@@ -268,6 +285,12 @@
   </div>
   <div class="splash-text">СВОЯ КУХНЯ</div>
   <div class="splash-sub">доставка домашней еды</div>
+  <div class="progress-wrap">
+    <div class="progress-percent" id="splashPercent">0%</div>
+    <div class="progress-dots" id="splashDots">
+      <div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div><div class="dot"></div>
+    </div>
+  </div>
 </div>
 
 <header class="app-header">
@@ -327,7 +350,7 @@ const ICONS = {
 };
 
 
-const API_URL = 'https://script.google.com/macros/s/AKfycbxMqrMTP_aRWWAqknhof6MQDBxTMpsCWGIKEDhC_TqQ1lwglJCYg_yKw-B2uteLVCZy/exec';
+const API_URL = 'PASTE_YOUR_APPS_SCRIPT_WEB_APP_URL_HERE';
 
 const DELIVERY_TIERS = [
   { upTo: 1,    fee: 30000 },
@@ -416,32 +439,62 @@ async function apiPost(action, payload){
 /* =========================================================
    INIT
 ========================================================= */
+function setSplashProgress(p){
+  p = Math.max(0, Math.min(100, Math.round(p)));
+  const pctEl = document.getElementById('splashPercent');
+  if (pctEl) pctEl.textContent = p + '%';
+  document.querySelectorAll('#splashDots .dot').forEach((d, i) => {
+    d.classList.toggle('filled', p >= (i + 1) * 20);
+  });
+}
+
 async function init(){
+  setSplashProgress(4);
   try {
     state.favorites = (await csGet(CS_KEY_FAV)) || [];
     state.cart = (await csGet(CS_KEY_CART)) || [];
+    setSplashProgress(20);
+
+    // Menu fetch has no native progress events — nudge the bar forward gently
+    // while we wait, so the wait never looks frozen, then jump on completion.
+    let ticked = 20;
+    const ticker = setInterval(() => {
+      ticked = Math.min(ticked + 4, 88);
+      setSplashProgress(ticked);
+    }, 220);
 
     try {
       const menuRes = await apiGet('getMenu');
+      clearInterval(ticker);
       if (menuRes.ok) {
         state.items = menuRes.data.items;
         state.addons = menuRes.data.addons;
         state.restaurant = menuRes.data.restaurant;
         document.getElementById('hoursLine').textContent =
           `${menuRes.data.hours.weekday} · ${menuRes.data.hours.weekend}`;
+        setSplashProgress(95);
       } else {
         showToast('Ошибка загрузки меню');
+        setSplashProgress(95);
       }
-    } catch(e){ console.error(e); showToast('Не удалось связаться с сервером'); }
+    } catch(e){
+      clearInterval(ticker);
+      console.error(e); showToast('Не удалось связаться с сервером');
+      setSplashProgress(95);
+    }
 
     renderTab();
     updateCartBadge();
+    setSplashProgress(100);
   } catch(e){
     console.error('init() failed:', e);
+    setSplashProgress(100);
   } finally {
     // Always hide the splash, even if something above failed, so the app
-    // is never stuck on a frozen loading screen.
-    document.getElementById('splash').classList.add('hide');
+    // is never stuck on a frozen loading screen. Small delay so 100% is visible.
+    setTimeout(() => {
+      document.getElementById('splash').classList.add('hide');
+    }, 260);
   }
 }
 
@@ -701,22 +754,28 @@ function renderCart(){
   }
   sheet.innerHTML = `
     <div class="sheet-handle"></div>
-    <div class="font-display" style="font-size:19px;font-weight:700;margin-bottom:10px;">Корзина</div>
-    <div id="cartItemsList" style="display:flex;flex-direction:column;gap:10px;"></div>
-    <div style="display:flex;justify-content:space-between;margin-top:16px;font-weight:600;">
-      <span>Сумма блюд</span><span>${cartSubtotal().toLocaleString('ru-RU')} VND</span>
+    <div class="font-display" style="font-size:19px;font-weight:700;margin-bottom:14px;">Корзина</div>
+    <div id="cartItemsList" style="display:flex;flex-direction:column;gap:14px;"></div>
+    <div style="background:var(--surface);border-radius:14px;padding:14px 16px;margin-top:20px;">
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--ink-soft);">
+        <span>Позиций</span><span>${state.cart.reduce((s,c)=>s+c.qty,0)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px;font-weight:700;font-size:15px;">
+        <span>Сумма блюд</span><span>${cartSubtotal().toLocaleString('ru-RU')} VND</span>
+      </div>
     </div>
     <button class="primary-btn" id="toCheckoutBtn">${ICONS.cartAdd}Оформить заказ</button>
+    <div style="height:6px;"></div>
   `;
   const list = sheet.querySelector('#cartItemsList');
   state.cart.forEach((c, idx) => {
     const row = document.createElement('div');
-    row.style.cssText = 'display:flex;align-items:center;gap:10px;';
+    row.style.cssText = 'display:flex;align-items:center;gap:12px;';
     row.innerHTML = `
-      <img src="${c.image_url}" style="width:50px;height:50px;border-radius:10px;object-fit:cover;">
-      <div style="flex:1;">
-        <div style="font-size:13px;font-weight:600;">${c.name}${c.addon ? ' · ' + c.addon : ''}</div>
-        <div style="font-size:12px;color:var(--ink-soft);">${((c.price + (c.addon_extra||0))).toLocaleString('ru-RU')} VND</div>
+      <img src="${c.image_url}" style="width:56px;height:56px;border-radius:12px;object-fit:cover;flex-shrink:0;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13.5px;font-weight:600;">${c.name}${c.addon ? ' · ' + c.addon : ''}</div>
+        <div style="font-size:12px;color:var(--ink-soft);margin-top:2px;">${((c.price + (c.addon_extra||0))).toLocaleString('ru-RU')} VND</div>
       </div>
       <div class="qty-pill">
         <button data-dec="${idx}">${ICONS.minus}</button>
