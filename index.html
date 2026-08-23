@@ -1128,6 +1128,7 @@ function openCheckout(){
           applyPoint(res.data.lat, res.data.lng, 'Точка распознана по ссылке');
           manualStatus.innerHTML = statusHtml(ICONS.check, 'var(--accent)', 'Готово — координаты приняты.');
         } else {
+          console.warn('resolveMapLink failed:', res);
           manualStatus.innerHTML = statusHtml(ICONS.errorCircle, '#C0392B', 'Не удалось распознать координаты по этой ссылке. Попробуйте открыть её в Google Maps, поставить точку и скопировать ссылку заново, либо укажите координаты вручную в формате «широта, долгота».');
         }
       } catch(e) {
