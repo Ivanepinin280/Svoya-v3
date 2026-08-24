@@ -126,15 +126,29 @@
   header .brand-hours{ font-size:11px; color:var(--accent); margin-top:8px; font-weight:600; }
 
   /* ---------- Tabs ---------- */
-  .tabs{ display:flex; gap:5px; padding:14px 14px 0; position:relative; }
+  .tabs{
+    display:flex; gap:6px; padding:14px 14px 0; position:relative;
+    overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch;
+  }
+  .tabs::-webkit-scrollbar{ display:none; }
   .tab-btn{
-    flex:1; text-align:center; padding:9px 4px; font-size:12px; font-weight:600;
+    flex:0 0 auto; text-align:center; padding:9px 14px; font-size:12.5px; font-weight:600;
     border-radius:12px; background:var(--surface); color:var(--ink-soft); border:1px solid transparent;
     transition:background .25s ease, color .25s ease, transform .15s ease;
-    white-space:nowrap; overflow:hidden; text-overflow:ellipsis;
+    white-space:nowrap;
   }
   .tab-btn:active{ transform:scale(.96); }
   .tab-btn.active{ background:var(--ink); color:#fff; box-shadow:var(--shadow-soft); }
+
+  /* ---------- Category sections (Меню tab) ---------- */
+  .category-section{ margin-bottom:6px; }
+  .category-section:first-child .category-heading{ margin-top:0; }
+  .category-heading{
+    font-family:'Fraunces', serif; font-size:16px; font-weight:600; color:var(--ink);
+    margin:20px 2px 12px; display:flex; align-items:center; gap:8px;
+  }
+  .category-heading::after{ content:''; flex:1; height:1px; background:var(--line); }
+  .category-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
 
   /* ---------- Grid / Cards ---------- */
   .menu-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:16px; }
@@ -270,10 +284,11 @@
   }
   .sheet-overlay.open{ opacity:1; pointer-events:auto; }
   .sheet{
-    background:#fff; width:100%; max-height:88vh; overflow-y:auto;
+    background:#fff; width:100%; max-height:88vh; overflow-y:auto; overflow-x:hidden;
     border-top-left-radius:22px; border-top-right-radius:22px; padding:18px;
     transform:translateY(24px); transition:transform .3s cubic-bezier(.2,.8,.3,1);
     box-shadow:0 -8px 30px rgba(0,0,0,0.15);
+    box-sizing:border-box;
   }
   .sheet-overlay.open .sheet{ transform:translateY(0); }
   .sheet-handle{ width:36px; height:4px; background:var(--surface-dim); border-radius:99px; margin:0 auto 14px; }
@@ -305,6 +320,25 @@
   .secondary-btn svg{ width:15px; height:15px; flex-shrink:0; }
 
   .empty-state{ text-align:center; padding:60px 24px; color:var(--ink-soft); }
+  .category-nav-btn{
+    position:sticky; top:8px; z-index:40;
+    display:flex; align-items:center; justify-content:center; gap:7px;
+    margin:14px 16px 0; padding:11px 14px; border-radius:14px;
+    background:#fff; color:var(--ink); font-size:13px; font-weight:600;
+    border:1px solid var(--line); box-shadow:0 6px 16px rgba(0,0,0,0.1);
+    transition:transform .15s ease, background .2s ease;
+  }
+  .category-nav-btn:active{ transform:scale(.97); background:var(--surface); }
+  .category-nav-btn svg{ width:16px; height:16px; flex-shrink:0; color:var(--accent); }
+  .category-list-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:14px 4px; border-bottom:1px solid var(--line);
+  }
+  .category-list-row:last-child{ border-bottom:none; }
+  .category-list-row .cat-name{ font-size:14.5px; font-weight:600; color:var(--ink); }
+  .category-list-row .cat-count{ font-size:12px; color:var(--ink-soft); margin-left:6px; font-weight:400; }
+  .category-list-row svg{ width:16px; height:16px; color:var(--ink-soft); flex-shrink:0; transform:rotate(-90deg); }
+  .category-list-row:active{ background:var(--surface); }
   .combo-banner{
     margin:14px 16px 0; padding:11px 14px; border-radius:14px;
     background:linear-gradient(155deg, rgba(201,154,60,0.13), rgba(201,154,60,0.05));
@@ -368,14 +402,21 @@
 </header>
 
 <div class="tabs">
-  <button class="tab-btn active" data-tab="day">Блюда дня</button>
+  <button class="tab-btn active" data-tab="catalog">Меню</button>
+  <button class="tab-btn" data-tab="day">Блюда дня</button>
   <button class="tab-btn" data-tab="combo">Собери комбо</button>
   <button class="tab-btn" data-tab="fav">Избранное</button>
   <button class="tab-btn" data-tab="history">История</button>
 </div>
 
+<button id="categoryNavBtn" class="category-nav-btn" style="display:none;"></button>
 <div id="comboBanner" class="combo-banner" style="display:none;"></div>
 <div id="menuGrid" class="menu-grid"></div>
+
+<!-- Category picker sheet -->
+<div class="sheet-overlay" id="categoryOverlay">
+  <div class="sheet" id="categorySheet"></div>
+</div>
 <div id="emptyState" class="empty-state" style="display:none;"></div>
 
 <!-- Floating draggable cart -->
@@ -416,7 +457,8 @@ const ICONS = {
   errorCircle: `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="m9 9 6 6M15 9l-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
   chevronDown: `<svg viewBox="0 0 24 24" fill="none"><path d="m6 9 6 6 6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
   check: `<svg viewBox="0 0 24 24" fill="none"><path d="m5 12.5 5 5L19 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
-  percentBadge: `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.5" stroke="currentColor" stroke-width="1.6"/><path d="M8.5 8.5h.01M15.5 15.5h.01M15.5 8.5 8.5 15.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`
+  percentBadge: `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.5" stroke="currentColor" stroke-width="1.6"/><path d="M8.5 8.5h.01M15.5 15.5h.01M15.5 8.5 8.5 15.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  list: `<svg viewBox="0 0 24 24" fill="none"><path d="M8 6h13M8 12h13M8 18h13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="3.5" cy="6" r="1.4" fill="currentColor"/><circle cx="3.5" cy="12" r="1.4" fill="currentColor"/><circle cx="3.5" cy="18" r="1.4" fill="currentColor"/></svg>`
 };
 
 
@@ -447,7 +489,7 @@ let state = {
   favorites: [],
   cart: [],       // { id, name, price, qty, addon, addon_extra }
   history: [],
-  activeTab: 'day',
+  activeTab: 'catalog',
   deliveryPoint: null // { lat, lng }
 };
 
@@ -580,12 +622,24 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   });
 });
 
+const CATEGORY_ORDER = ['Супы', 'Горячее', 'Гарнир', 'Салат', 'Напитки', 'Блины'];
+
 async function renderTab(){
   const grid = document.getElementById('menuGrid');
   const empty = document.getElementById('emptyState');
   const comboBanner = document.getElementById('comboBanner');
+  const categoryNavBtn = document.getElementById('categoryNavBtn');
   grid.innerHTML = '';
   grid.style.gridTemplateColumns = ''; // reset any 1-column layout left over from History tab
+  grid.style.display = ''; // reset block-mode left over from the catalog tab
+
+  if (state.activeTab === 'catalog') {
+    comboBanner.style.display = 'none';
+    renderCatalog();
+    return;
+  }
+
+  categoryNavBtn.style.display = 'none';
 
   let list = [];
   if (state.activeTab === 'day') {
@@ -623,6 +677,121 @@ async function renderTab(){
   empty.style.display = 'none';
   list.forEach((item, idx) => grid.appendChild(renderCard(item, idx)));
 }
+
+const CYRILLIC_LOOKALIKE_MAP_ = { a:'а', b:'в', c:'с', e:'е', h:'н', k:'к', m:'м', o:'о', p:'р', t:'т', x:'х', y:'у' };
+function normalizeCatKey_(s){
+  return (s || '').toString()
+    .replace(/\u00A0/g, ' ')            // non-breaking space -> regular space
+    .replace(/[\u200B-\u200D\uFEFF]/g, '') // zero-width chars some sheets/dropdowns insert
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+    // fix stray Latin letters that look identical to Cyrillic ones (a common
+    // invisible typo from autocomplete/keyboard switching) so "Cупы" (Latin C)
+    // still matches "Супы"
+    .replace(/[a-z]/g, ch => CYRILLIC_LOOKALIKE_MAP_[ch] || ch);
+}
+
+function getItemCategory_(item){
+  // Defends against a recurring issue in this project: if the "category"
+  // header cell in the sheet has a stray leading/trailing space, the API
+  // returns the value under a key like "category " instead of "category",
+  // and a plain item.category lookup silently returns undefined. Scan all
+  // keys for one that trims down to exactly "category".
+  if (item.category !== undefined && item.category !== null && item.category !== '') return item.category;
+  for (const key in item) {
+    if (key.trim().toLowerCase() === 'category' && item[key]) return item[key];
+  }
+  return '';
+}
+
+function renderCatalog(){
+  const grid = document.getElementById('menuGrid');
+  const empty = document.getElementById('emptyState');
+
+  if (state.items.length === 0) {
+    empty.style.display = 'block';
+    empty.textContent = 'Меню пока пусто.';
+    return;
+  }
+  empty.style.display = 'none';
+  grid.style.display = 'block';
+
+  // Map each known category to its normalized form, so a sheet value that only
+  // differs by spacing/case/hidden characters still lands in the right section.
+  const knownByNorm = {};
+  CATEGORY_ORDER.forEach(c => { knownByNorm[normalizeCatKey_(c)] = c; });
+
+  const groups = {};
+  state.items.forEach(item => {
+    const raw = getItemCategory_(item).toString().trim();
+    const norm = normalizeCatKey_(raw);
+    const cat = raw ? (knownByNorm[norm] || raw) : 'Другое';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(item);
+  });
+
+  const knownCats = CATEGORY_ORDER.filter(c => groups[c]);
+  const otherCats = Object.keys(groups)
+    .filter(c => !CATEGORY_ORDER.includes(c))
+    .sort((a, b) => a.localeCompare(b, 'ru'));
+  const orderedCats = [...knownCats, ...otherCats];
+
+  state.categoryAnchors = []; // [{ name, id, count }], used by the category picker sheet
+
+  orderedCats.forEach((cat, idx) => {
+    const sectionId = 'cat-section-' + idx;
+    state.categoryAnchors.push({ name: cat, id: sectionId, count: groups[cat].length });
+
+    const section = document.createElement('div');
+    section.className = 'category-section';
+    section.id = sectionId;
+    section.innerHTML = `<div class="category-heading">${cat}</div>`;
+    const subgrid = document.createElement('div');
+    subgrid.className = 'category-grid';
+    groups[cat].forEach((item, i) => subgrid.appendChild(renderCard(item, i)));
+    section.appendChild(subgrid);
+    grid.appendChild(section);
+  });
+
+  const navBtn = document.getElementById('categoryNavBtn');
+  if (orderedCats.length > 1) {
+    navBtn.style.display = 'flex';
+    navBtn.innerHTML = `${ICONS.list}Все категории (${orderedCats.length})`;
+  } else {
+    navBtn.style.display = 'none';
+  }
+}
+
+function openCategoryPicker(){
+  const overlay = document.getElementById('categoryOverlay');
+  const sheet = document.getElementById('categorySheet');
+  const anchors = state.categoryAnchors || [];
+
+  sheet.innerHTML = `
+    <div class="sheet-handle"></div>
+    <div class="font-display" style="font-size:19px;font-weight:700;margin-bottom:6px;">Категории</div>
+    <div id="categoryListRows"></div>
+  `;
+  const list = sheet.querySelector('#categoryListRows');
+  anchors.forEach(a => {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'category-list-row';
+    row.style.width = '100%';
+    row.innerHTML = `<span class="cat-name">${a.name}<span class="cat-count">${a.count}</span></span>${ICONS.chevronDown}`;
+    row.addEventListener('click', () => {
+      closeOverlay('categoryOverlay');
+      const target = document.getElementById(a.id);
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    list.appendChild(row);
+  });
+
+  overlay.classList.add('open');
+}
+
+document.getElementById('categoryNavBtn').addEventListener('click', openCategoryPicker);
 
 function renderHistory(){
   const grid = document.getElementById('menuGrid');
@@ -758,9 +927,9 @@ function openItemSheet(item, presetQty=1){
       <div id="addonList" style="display:flex;flex-direction:column;gap:8px;">
         ${addonOptions.map((a,i) => `
           <label style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;">
-            <input type="radio" name="addon" value="${i}" ${i===0?'checked':''}>
-            <span style="flex:1;font-size:13px;">${a.option_name}</span>
-            <span style="font-size:12px;color:var(--ink-soft);">${a.price_extra ? '+' + a.price_extra.toLocaleString('ru-RU') + ' VND' : ''}</span>
+            <input type="radio" name="addon" value="${i}" ${i===0?'checked':''} style="flex-shrink:0;">
+            <span style="flex:1;min-width:0;font-size:13px;word-break:break-word;">${a.option_name}</span>
+            <span style="flex-shrink:0;font-size:12px;color:var(--ink-soft);white-space:nowrap;">${a.price_extra ? '+' + a.price_extra.toLocaleString('ru-RU') + ' VND' : ''}</span>
           </label>
         `).join('')}
       </div>
