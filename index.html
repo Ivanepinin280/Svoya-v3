@@ -141,14 +141,49 @@
   .tab-btn.active{ background:var(--ink); color:#fff; box-shadow:var(--shadow-soft); }
 
   /* ---------- Category sections (Меню tab) ---------- */
-  .category-section{ margin-bottom:6px; }
+  .category-section{ margin-bottom:8px; }
   .category-section:first-child .category-heading{ margin-top:0; }
   .category-heading{
-    font-family:'Fraunces', serif; font-size:16px; font-weight:600; color:var(--ink);
-    margin:20px 2px 12px; display:flex; align-items:center; gap:8px;
+    display:flex; align-items:center; gap:10px;
+    margin:26px 2px 14px;
+  }
+  .category-heading::before{
+    content:''; width:4px; height:18px; border-radius:3px;
+    background:linear-gradient(180deg, var(--accent-light), var(--accent));
+    flex-shrink:0;
+  }
+  .category-heading .cat-title{
+    font-family:'Fraunces', serif; font-size:17px; font-weight:600; color:var(--ink);
+  }
+  .category-heading .cat-badge{
+    font-family:'Inter', sans-serif; font-size:11px; font-weight:700; color:var(--ink-soft);
+    background:var(--surface); border-radius:999px; padding:3px 9px;
   }
   .category-heading::after{ content:''; flex:1; height:1px; background:var(--line); }
   .category-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+  /* ---------- Addon / garnish picker ---------- */
+  .addon-option{
+    display:grid; grid-template-columns:22px minmax(0,1fr) auto; align-items:center; gap:11px;
+    background:#fff; border:1.5px solid var(--line); border-radius:13px; padding:12px 13px;
+    transition:border-color .2s ease, background .2s ease;
+  }
+  .addon-option.selected{ border-color:var(--accent); background:rgba(201,154,60,0.07); }
+  .addon-radio-dot{
+    width:20px; height:20px; border-radius:50%; border:2px solid var(--line);
+    display:flex; align-items:center; justify-content:center; position:relative; flex-shrink:0;
+    transition:border-color .2s ease;
+  }
+  .addon-option.selected .addon-radio-dot{ border-color:var(--accent); }
+  .addon-radio-dot::after{
+    content:''; width:10px; height:10px; border-radius:50%; background:var(--accent);
+    opacity:0; transform:scale(.4);
+    transition:opacity .15s ease, transform .15s cubic-bezier(.34,1.56,.64,1);
+  }
+  .addon-option.selected .addon-radio-dot::after{ opacity:1; transform:scale(1); }
+  .addon-name{ font-size:13.5px; font-weight:500; color:var(--ink); overflow-wrap:break-word; min-width:0; }
+  .addon-price{ font-size:12px; color:var(--ink-soft); white-space:nowrap; font-weight:600; }
+  .addon-option.selected .addon-price{ color:var(--accent); }
 
   /* ---------- Grid / Cards ---------- */
   .menu-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:16px; }
@@ -746,7 +781,7 @@ function renderCatalog(){
     const section = document.createElement('div');
     section.className = 'category-section';
     section.id = sectionId;
-    section.innerHTML = `<div class="category-heading">${cat}</div>`;
+    section.innerHTML = `<div class="category-heading"><span class="cat-title">${cat}</span><span class="cat-badge">${groups[cat].length}</span></div>`;
     const subgrid = document.createElement('div');
     subgrid.className = 'category-grid';
     groups[cat].forEach((item, i) => subgrid.appendChild(renderCard(item, i)));
@@ -924,12 +959,13 @@ function openItemSheet(item, presetQty=1){
     <div class="price" style="margin-top:8px;">${Number(item.price).toLocaleString('ru-RU')} VND</div>
     ${addonOptions.length ? `
       <label class="field-label">Выберите гарнир / соус</label>
-      <div id="addonList" style="display:flex;flex-direction:column;gap:8px;">
+      <div id="addonList" style="display:flex;flex-direction:column;gap:9px;">
         ${addonOptions.map((a,i) => `
-          <label style="display:flex;align-items:center;gap:8px;background:#fff;border:1px solid var(--line);border-radius:12px;padding:10px 12px;">
-            <input type="radio" name="addon" value="${i}" ${i===0?'checked':''} style="flex-shrink:0;">
-            <span style="flex:1;min-width:0;font-size:13px;word-break:break-word;">${a.option_name}</span>
-            <span style="flex-shrink:0;font-size:12px;color:var(--ink-soft);white-space:nowrap;">${a.price_extra ? '+' + a.price_extra.toLocaleString('ru-RU') + ' VND' : ''}</span>
+          <label class="addon-option ${i===0?'selected':''}">
+            <input type="radio" name="addon" value="${i}" ${i===0?'checked':''} style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
+            <span class="addon-radio-dot"></span>
+            <span class="addon-name">${a.option_name}</span>
+            <span class="addon-price">${a.price_extra ? '+' + a.price_extra.toLocaleString('ru-RU') + ' VND' : ''}</span>
           </label>
         `).join('')}
       </div>
@@ -945,6 +981,13 @@ function openItemSheet(item, presetQty=1){
       </button>
     </div>
   `;
+
+  sheet.querySelectorAll('.addon-option input[type=radio]').forEach(inp => {
+    inp.addEventListener('change', () => {
+      sheet.querySelectorAll('.addon-option').forEach(opt => opt.classList.remove('selected'));
+      inp.closest('.addon-option').classList.add('selected');
+    });
+  });
 
   let qty = presetQty;
   const qtyVal = sheet.querySelector('#sheetQtyVal');
