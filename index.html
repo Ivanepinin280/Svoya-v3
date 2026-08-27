@@ -604,6 +604,32 @@ function setSplashPhotos(urls){
 
 function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
 
+// Curated splash photos: drop numbered files (1.jpg, 2.jpg, 3.jpg, ... in
+// order) into a "splash/" folder next to index.html in the repo. No code
+// changes needed — the app probes for however many exist (up to the cap
+// below) and uses those instead of pulling dish photos automatically.
+const SPLASH_PHOTOS_FOLDER = 'splash/';
+const SPLASH_PHOTOS_MAX = 12;
+
+function probeImage(url){
+  return new Promise(resolve => {
+    const img = new Image();
+    img.onload = () => resolve(url);
+    img.onerror = () => resolve(null);
+    img.src = url;
+  });
+}
+
+async function loadCuratedSplashPhotos(){
+  const tries = [];
+  for (let i = 1; i <= SPLASH_PHOTOS_MAX; i++) {
+    const base = `${SPLASH_PHOTOS_FOLDER}${i}`;
+    tries.push(probeImage(base + '.jpg').then(r => r || probeImage(base + '.jpeg')).then(r => r || probeImage(base + '.png')));
+  }
+  const results = await Promise.all(tries);
+  return results.filter(Boolean);
+}
+
 async function init(){
   startSplashCarousel();
   try {
@@ -611,6 +637,7 @@ async function init(){
     state.cart = (await csGet(CS_KEY_CART)) || [];
 
     const minWait = wait(2600); // floor so the carousel never flashes by on a fast connection
+    const curatedPhotosPromise = loadCuratedSplashPhotos(); // runs in parallel, doesn't add to wait time
 
     try {
       const menuRes = await apiGet('getMenu');
@@ -620,20 +647,25 @@ async function init(){
         state.restaurant = menuRes.data.restaurant;
         document.getElementById('hoursLine').textContent =
           `${menuRes.data.hours.weekday} · ${menuRes.data.hours.weekend}`;
-
-        // Prefer combo-dish photos for the splash; fall back to any dish if
-        // there aren't enough (or none) marked as combo yet.
-        const comboPhotos = state.items
-          .filter(i => (i.is_combo === true || i.is_combo === 'TRUE') && i.image_url)
-          .map(i => i.image_url);
-        const anyPhotos = state.items.filter(i => i.image_url).map(i => i.image_url);
-        const uniquePhotos = [...new Set(comboPhotos.length >= 3 ? comboPhotos : anyPhotos)].slice(0, 8);
-        setSplashPhotos(uniquePhotos);
       } else {
         showToast('Ошибка загрузки меню');
       }
     } catch(e){
       console.error(e); showToast('Не удалось связаться с сервером');
+    }
+
+    // Prefer specially prepared photos from splash/ if any were uploaded;
+    // otherwise fall back to combo-dish photos, then any dish photos.
+    const curatedPhotos = await curatedPhotosPromise;
+    if (curatedPhotos.length > 0) {
+      setSplashPhotos(curatedPhotos);
+    } else if (state.items.length > 0) {
+      const comboPhotos = state.items
+        .filter(i => (i.is_combo === true || i.is_combo === 'TRUE') && i.image_url)
+        .map(i => i.image_url);
+      const anyPhotos = state.items.filter(i => i.image_url).map(i => i.image_url);
+      const uniquePhotos = [...new Set(comboPhotos.length >= 3 ? comboPhotos : anyPhotos)].slice(0, 8);
+      setSplashPhotos(uniquePhotos);
     }
 
     await minWait;
