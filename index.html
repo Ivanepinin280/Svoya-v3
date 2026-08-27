@@ -34,22 +34,98 @@
   .font-display{ font-family:'Fraunces', serif; }
   svg{ display:block; }
 
-  /* ---------- Splash: rotating dish-photo carousel ---------- */
+  /* ---------- Splash: illustrated SVG scene carousel (no external images) ---------- */
   #splash{
     position:fixed; inset:0; z-index:999;
-    background:#0a0a0a;
+    background:
+      radial-gradient(circle at 50% 30%, #14140f 0%, #0a0a0a 60%, #050505 100%);
     overflow:hidden;
     transition:opacity .5s ease, visibility .5s ease;
   }
   #splash.hide{ opacity:0; visibility:hidden; pointer-events:none; }
 
-  .splash-layer{
-    position:absolute; inset:0; background-size:cover; background-position:center;
-    opacity:0; transform:scale(1.06);
-    transition:opacity 1.1s ease;
+  .splash-scene{
+    position:absolute; inset:0; z-index:1;
+    display:flex; align-items:center; justify-content:center;
+    opacity:0; transition:opacity .55s ease;
   }
-  .splash-layer.is-active{ opacity:1; animation:splashKenBurns 2.6s ease-out forwards; }
-  @keyframes splashKenBurns{ 0%{ transform:scale(1.06); } 100%{ transform:scale(1); } }
+  .splash-scene.is-active{ opacity:1; }
+  .scene-art{ width:min(58vw, 230px); display:block; }
+  .scene-content{ display:flex; flex-direction:column; align-items:center; }
+
+  .cat-row{ display:flex; gap:13px; }
+  .cat-chip{
+    width:48px; height:48px; border-radius:50%;
+    background:rgba(255,255,255,0.06); border:1.5px solid rgba(230,197,112,0.4);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .cat-chip svg{ width:22px; height:22px; color:var(--accent-light); }
+
+  .combo-grid{ display:grid; grid-template-columns:repeat(2,1fr); gap:16px; position:relative; }
+  .combo-item{ position:relative; width:62px; height:62px; }
+  .combo-plate{
+    width:100%; height:100%; border-radius:16px;
+    background:rgba(255,255,255,0.06); border:1.5px solid rgba(255,255,255,0.16);
+    display:flex; align-items:center; justify-content:center;
+  }
+  .combo-plate svg{ width:26px; height:26px; color:rgba(255,255,255,0.5); }
+  .combo-check{
+    position:absolute; top:-6px; right:-6px; width:22px; height:22px; border-radius:50%;
+    background:var(--accent); display:flex; align-items:center; justify-content:center;
+    box-shadow:0 2px 6px rgba(0,0,0,0.4);
+  }
+  .combo-check svg{ width:12px; height:12px; color:#1a1400; }
+  .combo-badge{
+    margin-top:18px; color:var(--accent); font-family:'Fraunces',serif; font-weight:700; font-size:17px;
+  }
+
+  /* Scene: menu / steaming bowl */
+  .steam-wisp{ opacity:0; stroke-dasharray:60; stroke-dashoffset:60; animation:steamFlow 2.6s ease-in-out infinite; }
+  .splash-scene:not(.is-active) .steam-wisp{ animation:none; opacity:0; }
+  .steam-wisp.w2{ animation-delay:.5s; }
+  .steam-wisp.w3{ animation-delay:1s; }
+  @keyframes steamFlow{
+    0%{ opacity:0; stroke-dashoffset:60; transform:translateY(0); }
+    20%{ opacity:.8; }
+    75%{ opacity:.3; }
+    100%{ opacity:0; stroke-dashoffset:0; transform:translateY(-14px); }
+  }
+
+  /* Scene: category chips */
+  .cat-chip{ opacity:0; transform:translateY(10px) scale(.85); animation:chipIn .5s cubic-bezier(.34,1.56,.64,1) forwards; }
+  .splash-scene:not(.is-active) .cat-chip{ animation:none; opacity:0; }
+  .cat-chip:nth-child(1){ animation-delay:.05s; }
+  .cat-chip:nth-child(2){ animation-delay:.2s; }
+  .cat-chip:nth-child(3){ animation-delay:.35s; }
+  .cat-chip:nth-child(4){ animation-delay:.5s; }
+  @keyframes chipIn{ to{ opacity:1; transform:translateY(0) scale(1); } }
+
+  /* Scene: build-a-combo checkmarks */
+  .combo-check{ opacity:0; transform:scale(.3); animation:checkPop .45s cubic-bezier(.34,1.56,.64,1) forwards; }
+  .splash-scene:not(.is-active) .combo-check{ animation:none; opacity:0; }
+  .combo-item:nth-child(1) .combo-check{ animation-delay:.3s; }
+  .combo-item:nth-child(2) .combo-check{ animation-delay:.55s; }
+  .combo-item:nth-child(3) .combo-check{ animation-delay:.8s; }
+  .combo-item:nth-child(4) .combo-check{ animation-delay:1.05s; }
+  @keyframes checkPop{ to{ opacity:1; transform:scale(1); } }
+  .combo-badge{ opacity:0; animation:chipIn .4s ease .3s forwards; }
+  .splash-scene:not(.is-active) .combo-badge{ animation:none; opacity:0; }
+
+  /* Scene: delivery route */
+  .route-line{ stroke-dasharray:400; stroke-dashoffset:400; animation:routeDraw 2s ease-out forwards; }
+  .splash-scene:not(.is-active) .route-line{ animation:none; stroke-dashoffset:400; }
+  @keyframes routeDraw{ to{ stroke-dashoffset:0; } }
+  .route-pulse{ transform-origin:center; animation:pinPulse 1.8s ease-out infinite; animation-delay:1.6s; opacity:0; }
+  .splash-scene:not(.is-active) .route-pulse{ animation:none; opacity:0; }
+  @keyframes pinPulse{ 0%{ transform:scale(.5); opacity:.9; } 100%{ transform:scale(2.4); opacity:0; } }
+
+  /* Scene: ready checkmark */
+  .ready-ring{ transform-origin:center; animation:readyRing 1.6s ease-out infinite; }
+  .splash-scene:not(.is-active) .ready-ring{ animation:none; opacity:0; }
+  @keyframes readyRing{ 0%{ transform:scale(.85); opacity:.8; } 100%{ transform:scale(1.5); opacity:0; } }
+  .ready-check{ stroke-dasharray:30; stroke-dashoffset:30; animation:checkDraw .5s ease .2s forwards; }
+  .splash-scene:not(.is-active) .ready-check{ animation:none; stroke-dashoffset:30; }
+  @keyframes checkDraw{ to{ stroke-dashoffset:0; } }
 
   .splash-shade{
     position:absolute; inset:0; z-index:2;
@@ -385,7 +461,65 @@
 <body>
 
 <div id="splash">
-  <div id="splashLayers"></div>
+  <div id="splashScenes">
+    <!-- Scene 1: menu / steaming bowl -->
+    <div class="splash-scene">
+      <svg class="scene-art" viewBox="0 0 200 160">
+        <ellipse cx="100" cy="118" rx="58" ry="13" fill="rgba(255,255,255,0.05)"/>
+        <path d="M42 112 q0 -9 9 -11 h98 q9 2 9 11" fill="none" stroke="rgba(255,255,255,0.4)" stroke-width="2.2" stroke-linecap="round"/>
+        <path d="M58 90 q42 -15 84 0" fill="none" stroke="#E6C570" stroke-width="2.6" stroke-linecap="round"/>
+        <path class="steam-wisp w1" d="M85 74 C 78 60, 92 53, 86 38" fill="none" stroke="#E6C570" stroke-width="2"/>
+        <path class="steam-wisp w2" d="M100 76 C 93 62, 107 55, 101 40" fill="none" stroke="#E6C570" stroke-width="2"/>
+        <path class="steam-wisp w3" d="M115 74 C 108 60, 122 53, 116 38" fill="none" stroke="#E6C570" stroke-width="2"/>
+      </svg>
+    </div>
+
+    <!-- Scene 2: category chips -->
+    <div class="splash-scene">
+      <div class="scene-content">
+        <div class="cat-row">
+          <div class="cat-chip"><svg viewBox="0 0 24 24" fill="none"><path d="M4 11h16a1 1 0 0 1 1 1c0 5-4 8-9 8s-9-3-9-8a1 1 0 0 1 1-1Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 11V6M9 6c0-2 1.5-3 3-3s3 1 3 3" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+          <div class="cat-chip"><svg viewBox="0 0 24 24" fill="none"><path d="M6 4c4 0 6 2 6 6 0 3-2 5-4 5-3 0-4-2.5-4-5 0-2.4.7-4.2 2-6Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M8 15v5M14 8c3 0 5 3 5 6 0 3-2 5-4 5s-4-2-4-4" stroke="currentColor" stroke-width="1.5" stroke-linecap="round"/></svg></div>
+          <div class="cat-chip"><svg viewBox="0 0 24 24" fill="none"><path d="M4 14h16M6 14c0-5 3-9 6-9s6 4 6 9" stroke="currentColor" stroke-width="1.7" stroke-linecap="round" stroke-linejoin="round"/><path d="M5 14c0 3 3 6 7 6s7-3 7-6" stroke="currentColor" stroke-width="1.7" stroke-linecap="round"/></svg></div>
+          <div class="cat-chip"><svg viewBox="0 0 24 24" fill="none"><path d="M8 3h8l-1 6a3 3 0 0 1-6 0L8 3Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 12v9M9 21h6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg></div>
+        </div>
+      </div>
+    </div>
+
+    <!-- Scene 3: build-a-combo checkmarks -->
+    <div class="splash-scene">
+      <div class="scene-content">
+        <div class="combo-grid">
+          <div class="combo-item"><div class="combo-plate"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.6"/></svg></div><div class="combo-check"><svg viewBox="0 0 24 24" fill="none"><path d="m5 12.5 5 5L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
+          <div class="combo-item"><div class="combo-plate"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.6"/></svg></div><div class="combo-check"><svg viewBox="0 0 24 24" fill="none"><path d="m5 12.5 5 5L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
+          <div class="combo-item"><div class="combo-plate"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.6"/></svg></div><div class="combo-check"><svg viewBox="0 0 24 24" fill="none"><path d="m5 12.5 5 5L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
+          <div class="combo-item"><div class="combo-plate"><svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="8" stroke="currentColor" stroke-width="1.6"/></svg></div><div class="combo-check"><svg viewBox="0 0 24 24" fill="none"><path d="m5 12.5 5 5L19 7" stroke="currentColor" stroke-width="2.4" stroke-linecap="round" stroke-linejoin="round"/></svg></div></div>
+        </div>
+        <div class="combo-badge">−10%</div>
+      </div>
+    </div>
+
+    <!-- Scene 4: delivery route -->
+    <div class="splash-scene">
+      <svg class="scene-art" viewBox="0 0 220 150">
+        <path class="route-line" d="M38 118 C 70 60, 130 108, 182 34" fill="none" stroke="#E6C570" stroke-width="2.4" stroke-dasharray="7 8" stroke-linecap="round"/>
+        <circle cx="38" cy="118" r="6" fill="#E6C570"/>
+        <circle cx="38" cy="118" r="10" fill="none" stroke="rgba(230,197,112,0.5)" stroke-width="1.5"/>
+        <circle class="route-pulse" cx="182" cy="34" r="9" fill="rgba(230,197,112,0.55)"/>
+        <path d="M182 22a12 12 0 0 1 12 12c0 8-12 20-12 20s-12-12-12-20a12 12 0 0 1 12-12Z" fill="#E6C570"/>
+        <circle cx="182" cy="34" r="4" fill="#1a1400"/>
+      </svg>
+    </div>
+
+    <!-- Scene 5: ready -->
+    <div class="splash-scene">
+      <svg class="scene-art" viewBox="0 0 160 160">
+        <circle class="ready-ring" cx="80" cy="80" r="46" fill="none" stroke="rgba(230,197,112,0.55)" stroke-width="2"/>
+        <circle cx="80" cy="80" r="46" fill="none" stroke="rgba(255,255,255,0.12)" stroke-width="1.5"/>
+        <path class="ready-check" d="M60 82 L74 96 L102 64" fill="none" stroke="#E6C570" stroke-width="4.5" stroke-linecap="round" stroke-linejoin="round"/>
+      </svg>
+    </div>
+  </div>
   <div class="splash-shade"></div>
   <div class="splash-top">
     <div class="splash-badge"><img src="logo.png" alt="Своя кухня"></div>
@@ -393,8 +527,11 @@
   </div>
   <div class="splash-bottom">
     <div class="splash-cap" id="splashCap">Загружаем меню…</div>
-    <div class="splash-sub">Фото блюд могут отличаться от подаваемых при доставке</div>
-    <div class="splash-dots" id="splashDots"></div>
+    <div class="splash-sub">Готовим с заботой — каждый раз свежее</div>
+    <div class="splash-dots" id="splashDots">
+      <div class="splash-dot"></div><div class="splash-dot"></div><div class="splash-dot"></div>
+      <div class="splash-dot"></div><div class="splash-dot"></div>
+    </div>
   </div>
 </div>
 
@@ -561,26 +698,24 @@ async function apiPost(action, payload){
 ========================================================= */
 const SPLASH_CAPTIONS = [
   'Загружаем меню…',
-  'Готовим фото блюд…',
-  'Проверяем наличие блюд…',
-  'Считаем скидки на комбо…',
-  'Настраиваем доставку по Нячангу…',
-  'Почти готово…'
+  'Более 6 категорий блюд — на любой вкус',
+  'Собери комбо минимум из 4 блюд — скидка 10%',
+  'Поделитесь геопозицией — доставим быстрее',
+  'Всё готово — открываем меню…'
 ];
 const SPLASH_SLIDE_MS = 3000;
 let splashTimer = null;
 let splashStep = 0;
-let splashSlideCount = 1; // updated once real photos are loaded
 
 function splashTick(){
   const capEl = document.getElementById('splashCap');
   const dotsEl = document.getElementById('splashDots');
+  const scenes = document.querySelectorAll('#splashScenes .splash-scene');
   if (capEl) capEl.textContent = SPLASH_CAPTIONS[splashStep % SPLASH_CAPTIONS.length];
   if (dotsEl) {
-    dotsEl.querySelectorAll('.splash-dot').forEach((d, i) => d.classList.toggle('on', i === splashStep % splashSlideCount));
+    dotsEl.querySelectorAll('.splash-dot').forEach((d, i) => d.classList.toggle('on', i === splashStep % scenes.length));
   }
-  const layers = document.querySelectorAll('#splashLayers .splash-layer');
-  layers.forEach((l, i) => l.classList.toggle('is-active', i === splashStep % layers.length));
+  scenes.forEach((s, i) => s.classList.toggle('is-active', i === splashStep % scenes.length));
   splashStep++;
 }
 
@@ -593,42 +728,7 @@ function stopSplashCarousel(){
   if (splashTimer) { clearInterval(splashTimer); splashTimer = null; }
 }
 
-function setSplashPhotos(urls){
-  const layersEl = document.getElementById('splashLayers');
-  const dotsEl = document.getElementById('splashDots');
-  if (!layersEl || urls.length === 0) return; // keep the default single dark layer, nothing to show
-  layersEl.innerHTML = urls.map(u => `<div class="splash-layer" style="background-image:url('${u}')"></div>`).join('');
-  splashSlideCount = urls.length;
-  if (dotsEl) dotsEl.innerHTML = urls.map(() => '<div class="splash-dot"></div>').join('');
-}
-
 function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
-
-// Curated splash photos: drop numbered files (1.jpg, 2.jpg, 3.jpg, ... in
-// order) into a "splash/" folder next to index.html in the repo. No code
-// changes needed — the app probes for however many exist (up to the cap
-// below) and uses those instead of pulling dish photos automatically.
-const SPLASH_PHOTOS_FOLDER = 'splash/';
-const SPLASH_PHOTOS_MAX = 12;
-
-function probeImage(url){
-  return new Promise(resolve => {
-    const img = new Image();
-    img.onload = () => resolve(url);
-    img.onerror = () => resolve(null);
-    img.src = url;
-  });
-}
-
-async function loadCuratedSplashPhotos(){
-  const tries = [];
-  for (let i = 1; i <= SPLASH_PHOTOS_MAX; i++) {
-    const base = `${SPLASH_PHOTOS_FOLDER}${i}`;
-    tries.push(probeImage(base + '.jpg').then(r => r || probeImage(base + '.jpeg')).then(r => r || probeImage(base + '.png')));
-  }
-  const results = await Promise.all(tries);
-  return results.filter(Boolean);
-}
 
 async function init(){
   startSplashCarousel();
@@ -637,7 +737,6 @@ async function init(){
     state.cart = (await csGet(CS_KEY_CART)) || [];
 
     const minWait = wait(2600); // floor so the carousel never flashes by on a fast connection
-    const curatedPhotosPromise = loadCuratedSplashPhotos(); // runs in parallel, doesn't add to wait time
 
     try {
       const menuRes = await apiGet('getMenu');
@@ -652,20 +751,6 @@ async function init(){
       }
     } catch(e){
       console.error(e); showToast('Не удалось связаться с сервером');
-    }
-
-    // Prefer specially prepared photos from splash/ if any were uploaded;
-    // otherwise fall back to combo-dish photos, then any dish photos.
-    const curatedPhotos = await curatedPhotosPromise;
-    if (curatedPhotos.length > 0) {
-      setSplashPhotos(curatedPhotos);
-    } else if (state.items.length > 0) {
-      const comboPhotos = state.items
-        .filter(i => (i.is_combo === true || i.is_combo === 'TRUE') && i.image_url)
-        .map(i => i.image_url);
-      const anyPhotos = state.items.filter(i => i.image_url).map(i => i.image_url);
-      const uniquePhotos = [...new Set(comboPhotos.length >= 3 ? comboPhotos : anyPhotos)].slice(0, 8);
-      setSplashPhotos(uniquePhotos);
     }
 
     await minWait;
