@@ -405,7 +405,6 @@
 
 <div class="tabs">
   <button class="tab-btn active" data-tab="catalog">Меню</button>
-  <button class="tab-btn" data-tab="day">Блюда дня</button>
   <button class="tab-btn" data-tab="combo">Собери комбо</button>
   <button class="tab-btn" data-tab="fav">Избранное</button>
   <button class="tab-btn" data-tab="history">История</button>
@@ -653,9 +652,7 @@ async function renderTab(){
   categoryNavBtn.style.display = 'none';
 
   let list = [];
-  if (state.activeTab === 'day') {
-    list = state.items.filter(i => i.is_day_dish === true || i.is_day_dish === 'TRUE');
-  } else if (state.activeTab === 'combo') {
+  if (state.activeTab === 'combo') {
     list = state.items.filter(i => i.is_combo === true || i.is_combo === 'TRUE');
   } else if (state.activeTab === 'fav') {
     list = state.items.filter(i => state.favorites.includes(String(i.id)));
@@ -680,9 +677,7 @@ async function renderTab(){
     empty.style.display = 'block';
     empty.textContent = state.activeTab === 'fav'
       ? 'Пока нет избранных блюд — нажмите на сердечко на карточке блюда.'
-      : state.activeTab === 'combo'
-        ? 'Комбо-наборов пока нет.'
-        : 'Сегодня блюд дня не найдено.';
+      : 'Комбо-наборов пока нет.';
     return;
   }
   empty.style.display = 'none';
