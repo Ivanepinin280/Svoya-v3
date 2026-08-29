@@ -698,6 +698,17 @@ function normalizeCatKey_(s){
     .replace(/[a-z]/g, ch => CYRILLIC_LOOKALIKE_MAP_[ch] || ch);
 }
 
+// Checks whether a chosen garnish/sauce (from the addon picker) also exists
+// as its own standalone dish in the Menu sheet with is_combo=TRUE — matched
+// by name, tolerant of spacing/case/lookalike-letter differences.
+function isAddonComboEligible_(addonName){
+  if (!addonName) return false;
+  const norm = normalizeCatKey_(addonName);
+  return state.items.some(i =>
+    (i.is_combo === true || i.is_combo === 'TRUE') && normalizeCatKey_(i.name) === norm
+  );
+}
+
 function getItemCategory_(item){
   // Defends against a recurring issue in this project: if the "category"
   // header cell in the sheet has a stray leading/trailing space, the API
@@ -870,7 +881,7 @@ function renderCard(item, idx){
       <div class="add-row">
         <div class="qty-pill">
           <button data-qty-minus>${ICONS.minus}</button>
-          <span data-qty-val>1</span>
+          <span data-qty-val>0</span>
           <button data-qty-plus>${ICONS.plus}</button>
         </div>
         <button class="add-btn" data-add="${item.id}" ${outOfStock ? 'disabled' : ''}>${ICONS.cartAdd}В корзину</button>
@@ -878,10 +889,10 @@ function renderCard(item, idx){
     </div>
   `;
 
-  let qty = 1;
+  let qty = 0;
   const qtyVal = el.querySelector('[data-qty-val]');
   el.querySelector('[data-qty-minus]').addEventListener('click', () => {
-    qty = Math.max(1, qty - 1); qtyVal.textContent = qty;
+    qty = Math.max(0, qty - 1); qtyVal.textContent = qty;
   });
   el.querySelector('[data-qty-plus]').addEventListener('click', () => {
     qty = Math.min(stock || 99, qty + 1); qtyVal.textContent = qty;
@@ -890,13 +901,15 @@ function renderCard(item, idx){
   el.querySelector('[data-fav]').addEventListener('click', () => toggleFavorite(item.id));
   const addBtn = el.querySelector('[data-add]');
   addBtn.addEventListener('click', () => {
+    const addQty = Math.max(1, qty); // tapping "В корзину" always adds at least 1, even if the stepper was left at 0
     addBtn.classList.remove('just-added'); void addBtn.offsetWidth; addBtn.classList.add('just-added');
     if (item.addon_group && state.addons[item.addon_group]) {
-      openItemSheet(item, qty);
+      openItemSheet(item, addQty);
     } else {
-      addToCart(item.id, qty);
+      addToCart(item.id, addQty);
       showToast('Добавлено в корзину');
     }
+    qty = 0; qtyVal.textContent = qty; // reset the stepper back to 0 after adding
   });
 
   return el;
@@ -916,7 +929,7 @@ function toggleFavorite(id){
 /* =========================================================
    ITEM DETAIL SHEET (with addon selection)
 ========================================================= */
-function openItemSheet(item, presetQty=1){
+function openItemSheet(item, presetQty=0){
   const overlay = document.getElementById('itemOverlay');
   const sheet = document.getElementById('itemSheet');
   const addonOptions = item.addon_group ? (state.addons[item.addon_group] || []) : [];
@@ -962,16 +975,17 @@ function openItemSheet(item, presetQty=1){
 
   let qty = presetQty;
   const qtyVal = sheet.querySelector('#sheetQtyVal');
-  sheet.querySelector('#sheetQtyMinus').addEventListener('click', () => { qty = Math.max(1, qty-1); qtyVal.textContent = qty; });
+  sheet.querySelector('#sheetQtyMinus').addEventListener('click', () => { qty = Math.max(0, qty-1); qtyVal.textContent = qty; });
   sheet.querySelector('#sheetQtyPlus').addEventListener('click', () => { qty = Math.min(stock||99, qty+1); qtyVal.textContent = qty; });
   sheet.querySelector('#sheetAddBtn').addEventListener('click', () => {
+    const addQty = Math.max(1, qty); // always adds at least 1, even if the stepper was left at 0
     let addon = null, addonExtra = 0;
     if (addonOptions.length) {
       const checked = sheet.querySelector('input[name="addon"]:checked');
       const chosen = addonOptions[Number(checked.value)];
       addon = chosen.option_name; addonExtra = chosen.price_extra;
     }
-    addToCart(item.id, qty, addon, addonExtra);
+    addToCart(item.id, addQty, addon, addonExtra);
     closeOverlay('itemOverlay');
     showToast('Добавлено в корзину');
   });
@@ -985,7 +999,13 @@ function openItemSheet(item, presetQty=1){
 function addToCart(id, qty, addon=null, addonExtra=0){
   const item = state.items.find(i => String(i.id) === String(id));
   if (!item) return;
-  const isCombo = item.is_combo === true || item.is_combo === 'TRUE';
+  // A dish counts as combo-eligible either because it's flagged itself, or
+  // because the chosen garnish/sauce happens to also exist as its own
+  // standalone combo-flagged dish (matched by name) — so picking it via the
+  // addon picker counts the same as adding it separately would.
+  const isCombo =
+    item.is_combo === true || item.is_combo === 'TRUE' ||
+    isAddonComboEligible_(addon);
   const existing = state.cart.find(c => String(c.id) === String(id) && c.addon === addon);
   if (existing) { existing.qty += qty; }
   else {
