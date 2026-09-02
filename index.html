@@ -151,6 +151,14 @@
     transition:opacity .15s ease, transform .15s cubic-bezier(.34,1.56,.64,1);
   }
   .addon-option.selected .addon-radio-dot::after{ opacity:1; transform:scale(1); }
+  .addon-check-box{
+    width:20px; height:20px; border-radius:6px; border:2px solid var(--line);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    transition:border-color .2s ease, background .2s ease;
+  }
+  .addon-check-box svg{ width:12px; height:12px; color:#fff; opacity:0; transform:scale(.5); transition:opacity .15s ease, transform .15s cubic-bezier(.34,1.56,.64,1); }
+  .addon-option.selected .addon-check-box{ border-color:var(--accent); background:var(--accent); }
+  .addon-option.selected .addon-check-box svg{ opacity:1; transform:scale(1); }
   .addon-name{ font-size:13.5px; font-weight:500; color:var(--ink); overflow-wrap:break-word; min-width:0; }
   .addon-price{ font-size:12px; color:var(--ink-soft); white-space:nowrap; font-weight:600; }
   .addon-option.selected .addon-price{ color:var(--accent); }
@@ -487,6 +495,7 @@ let state = {
   items: [],
   addons: {},
   restaurant: { lat: null, lng: null },
+  payment: { cashEnabled: true, qrImageUrl: '', qrNote: '' },
   favorites: [],
   cart: [],       // { id, name, price, qty, addon, addon_extra }
   history: [],
@@ -598,6 +607,7 @@ async function init(){
         state.items = menuRes.data.items;
         state.addons = menuRes.data.addons;
         state.restaurant = menuRes.data.restaurant;
+        if (menuRes.data.payment) state.payment = menuRes.data.payment;
         document.getElementById('hoursLine').textContent =
           `${menuRes.data.hours.weekday} · ${menuRes.data.hours.weekend}`;
       } else {
@@ -698,15 +708,20 @@ function normalizeCatKey_(s){
     .replace(/[a-z]/g, ch => CYRILLIC_LOOKALIKE_MAP_[ch] || ch);
 }
 
-// Checks whether a chosen garnish/sauce (from the addon picker) also exists
-// as its own standalone dish in the Menu sheet with is_combo=TRUE — matched
-// by name, tolerant of spacing/case/lookalike-letter differences.
+// Checks whether a chosen garnish/sauce/topping (from the addon picker) also
+// exists as its own standalone dish in the Menu sheet with is_combo=TRUE —
+// matched by name, tolerant of spacing/case/lookalike-letter differences.
+// addonName may be a single choice or several joined with ", " (multi-select
+// topping groups) — any one of them matching is enough.
 function isAddonComboEligible_(addonName){
   if (!addonName) return false;
-  const norm = normalizeCatKey_(addonName);
-  return state.items.some(i =>
-    (i.is_combo === true || i.is_combo === 'TRUE') && normalizeCatKey_(i.name) === norm
-  );
+  return addonName.split(',').some(part => {
+    const norm = normalizeCatKey_(part);
+    if (!norm) return false;
+    return state.items.some(i =>
+      (i.is_combo === true || i.is_combo === 'TRUE') && normalizeCatKey_(i.name) === norm
+    );
+  });
 }
 
 function getItemCategory_(item){
@@ -932,8 +947,11 @@ function toggleFavorite(id){
 function openItemSheet(item, presetQty=0){
   const overlay = document.getElementById('itemOverlay');
   const sheet = document.getElementById('itemSheet');
-  const addonOptions = item.addon_group ? (state.addons[item.addon_group] || []) : [];
+  const addonGroup = item.addon_group ? state.addons[item.addon_group] : null;
+  const isMulti = !!(addonGroup && addonGroup.multi);
+  const addonOptions = addonGroup ? addonGroup.options : [];
   const stock = Number(item.stock) || 0;
+  const inputType = isMulti ? 'checkbox' : 'radio';
 
   sheet.innerHTML = `
     <div class="sheet-handle"></div>
@@ -942,12 +960,12 @@ function openItemSheet(item, presetQty=0){
     <div style="font-size:13px;color:#666;margin-top:4px;">${item.description || ''}</div>
     <div class="price" style="margin-top:8px;">${Number(item.price).toLocaleString('ru-RU')} VND</div>
     ${addonOptions.length ? `
-      <label class="field-label">Выберите гарнир / соус</label>
+      <label class="field-label">${isMulti ? 'Выберите топинги' : 'Выберите гарнир / соус'}</label>
       <div id="addonList" style="display:flex;flex-direction:column;gap:9px;">
         ${addonOptions.map((a,i) => `
-          <label class="addon-option ${i===0?'selected':''}">
-            <input type="radio" name="addon" value="${i}" ${i===0?'checked':''} style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
-            <span class="addon-radio-dot"></span>
+          <label class="addon-option ${(!isMulti && i===0) ? 'selected' : ''}">
+            <input type="${inputType}" name="addon" value="${i}" ${(!isMulti && i===0) ? 'checked' : ''} style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
+            <span class="${isMulti ? 'addon-check-box' : 'addon-radio-dot'}">${isMulti ? ICONS.check : ''}</span>
             <span class="addon-name">${a.option_name}</span>
             <span class="addon-price">${a.price_extra ? '+' + a.price_extra.toLocaleString('ru-RU') + ' VND' : ''}</span>
           </label>
@@ -966,12 +984,20 @@ function openItemSheet(item, presetQty=0){
     </div>
   `;
 
-  sheet.querySelectorAll('.addon-option input[type=radio]').forEach(inp => {
-    inp.addEventListener('change', () => {
-      sheet.querySelectorAll('.addon-option').forEach(opt => opt.classList.remove('selected'));
-      inp.closest('.addon-option').classList.add('selected');
+  if (isMulti) {
+    sheet.querySelectorAll('.addon-option input[type=checkbox]').forEach(inp => {
+      inp.addEventListener('change', () => {
+        inp.closest('.addon-option').classList.toggle('selected', inp.checked);
+      });
     });
-  });
+  } else {
+    sheet.querySelectorAll('.addon-option input[type=radio]').forEach(inp => {
+      inp.addEventListener('change', () => {
+        sheet.querySelectorAll('.addon-option').forEach(opt => opt.classList.remove('selected'));
+        inp.closest('.addon-option').classList.add('selected');
+      });
+    });
+  }
 
   let qty = presetQty;
   const qtyVal = sheet.querySelector('#sheetQtyVal');
@@ -980,7 +1006,14 @@ function openItemSheet(item, presetQty=0){
   sheet.querySelector('#sheetAddBtn').addEventListener('click', () => {
     const addQty = Math.max(1, qty); // always adds at least 1, even if the stepper was left at 0
     let addon = null, addonExtra = 0;
-    if (addonOptions.length) {
+    if (isMulti) {
+      const chosen = Array.from(sheet.querySelectorAll('input[name="addon"]:checked'))
+        .map(c => addonOptions[Number(c.value)]);
+      if (chosen.length) {
+        addon = chosen.map(c => c.option_name).join(', ');
+        addonExtra = chosen.reduce((s, c) => s + (Number(c.price_extra) || 0), 0);
+      }
+    } else if (addonOptions.length) {
       const checked = sheet.querySelector('input[name="addon"]:checked');
       const chosen = addonOptions[Number(checked.value)];
       addon = chosen.option_name; addonExtra = chosen.price_extra;
@@ -1238,6 +1271,11 @@ function openCheckout(){
       <div class="manual-geo-hint">Откройте карту, найдите себя на ней, нажмите «Поделиться» → «Копировать ссылку» и вставьте её сюда. Администратор откроет ссылку вручную и уточнит точную стоимость доставки при подтверждении заказа.</div>
     </div>
 
+    <label class="field-label">Способ оплаты</label>
+    <div id="paymentSection">
+      <div style="font-size:12px;color:var(--ink-soft);">Определится после указания адреса доставки</div>
+    </div>
+
     <label class="field-label">Комментарий к заказу</label>
     <textarea id="fComment" rows="2" placeholder="Например: без острого, позвонить заранее"></textarea>
 
@@ -1255,6 +1293,7 @@ function openCheckout(){
   let deliveryFee = null;
   let point = null;
   let manualLink = null;
+  let paymentMethod = 'cash';
 
   function recompute(){
     const total = subtotal + (deliveryFee || 0);
@@ -1278,6 +1317,58 @@ function openCheckout(){
   function statusHtml(icon, color, text){
     return `<span style="display:flex;gap:6px;align-items:flex-start;"><span style="flex-shrink:0;width:13px;height:13px;color:${color};margin-top:1px;">${icon}</span><span>${text}</span></span>`;
   }
+  function updatePaymentSection(){
+    const el = sheet.querySelector('#paymentSection');
+    if (!el) return;
+    const maxTierFee = DELIVERY_TIERS[DELIVERY_TIERS.length - 1].fee;
+    const isMaxTier = deliveryFee !== null && deliveryFee === maxTierFee;
+    const forcedReason = !state.payment.cashEnabled
+      ? 'сейчас принимаются только безналичные заказы'
+      : (isMaxTier ? 'доставка по вашему адресу рассчитана по максимальному тарифу' : null);
+
+    if (forcedReason) {
+      paymentMethod = 'qr';
+      el.innerHTML = `
+        <div style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--ink-soft);background:var(--surface);border-radius:10px;padding:9px 10px;margin-bottom:8px;">
+          <span style="flex-shrink:0;width:15px;height:15px;color:var(--accent);margin-top:1px;">${ICONS.warning}</span>
+          <span>Доступна только оплата по QR — ${forcedReason}.</span>
+        </div>
+        ${state.payment.qrImageUrl ? `<img src="${state.payment.qrImageUrl}" style="width:100%;max-width:220px;display:block;margin:0 auto 10px;border-radius:12px;border:1px solid var(--line);">` : ''}
+        ${state.payment.qrNote ? `<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;">${state.payment.qrNote}</div>` : ''}
+      `;
+      return;
+    }
+
+    el.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <label class="addon-option ${paymentMethod==='cash'?'selected':''}" data-pay="cash">
+          <input type="radio" name="paymentMethod" value="cash" ${paymentMethod==='cash'?'checked':''} style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
+          <span class="addon-radio-dot"></span>
+          <span class="addon-name">Наличными при получении</span>
+          <span></span>
+        </label>
+        <label class="addon-option ${paymentMethod==='qr'?'selected':''}" data-pay="qr">
+          <input type="radio" name="paymentMethod" value="qr" ${paymentMethod==='qr'?'checked':''} style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
+          <span class="addon-radio-dot"></span>
+          <span class="addon-name">Оплата по QR</span>
+          <span></span>
+        </label>
+      </div>
+      <div id="qrPreview" style="${paymentMethod==='qr' ? '' : 'display:none;'}margin-top:10px;">
+        ${state.payment.qrImageUrl ? `<img src="${state.payment.qrImageUrl}" style="width:100%;max-width:220px;display:block;margin:0 auto 10px;border-radius:12px;border:1px solid var(--line);">` : ''}
+        ${state.payment.qrNote ? `<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;">${state.payment.qrNote}</div>` : ''}
+      </div>
+    `;
+    el.querySelectorAll('input[name="paymentMethod"]').forEach(inp => {
+      inp.addEventListener('change', () => {
+        paymentMethod = inp.value;
+        el.querySelectorAll('.addon-option').forEach(opt => opt.classList.toggle('selected', opt.dataset.pay === paymentMethod));
+        const qrPreview = el.querySelector('#qrPreview');
+        if (qrPreview) qrPreview.style.display = paymentMethod === 'qr' ? '' : 'none';
+      });
+    });
+  }
+
   function applyPoint(lat, lng, sourceLabel){
     manualLink = null; // geolocation succeeded — a manual link (if any) is no longer needed
     point = { lat, lng };
@@ -1289,6 +1380,7 @@ function openCheckout(){
     sheet.querySelector('#feeLine').textContent = deliveryFee.toLocaleString('ru-RU') + ' VND';
     const msg = `${sourceLabel || 'Геопозиция получена'} (~${km.toFixed(1)} км от кухни). Ссылка: maps.google.com/?q=${lat.toFixed(5)},${lng.toFixed(5)}`;
     sheet.querySelector('#geoStatus').innerHTML = statusHtml(ICONS.pin, 'var(--accent)', msg);
+    updatePaymentSection();
     recompute();
   }
 
@@ -1315,6 +1407,7 @@ function openCheckout(){
     sheet.querySelector('#feeLine').textContent = deliveryFee.toLocaleString('ru-RU') + ' VND (уточнит администратор)';
     sheet.querySelector('#geoStatus').innerHTML = '';
     manualStatus.innerHTML = statusHtml(ICONS.check, 'var(--accent)', 'Ссылка сохранена — администратор откроет её вручную и подтвердит точную стоимость доставки.');
+    updatePaymentSection();
     recompute();
   });
 
@@ -1384,6 +1477,11 @@ function openCheckout(){
       ? `${commentRaw}${commentRaw ? ' | ' : ''}⚠ Геопозиция не была отправлена автоматически — стоимость доставки предварительная (${(deliveryFee||0).toLocaleString('ru-RU')} VND), уточните по ссылке в адресе.`
       : commentRaw;
 
+    const maxTierFeeAtSubmit = DELIVERY_TIERS[DELIVERY_TIERS.length - 1].fee;
+    const paymentForcedReason = !state.payment.cashEnabled
+      ? 'отключена оплата наличными'
+      : ((deliveryFee === maxTierFeeAtSubmit) ? 'дальняя доставка' : null);
+
     const payload = {
       telegram_user_id: tgUser ? tgUser.id : '',
       telegram_username: tgUser ? tgUser.username : '',
@@ -1395,6 +1493,8 @@ function openCheckout(){
       subtotal, delivery_fee: deliveryFee || 0, total: subtotal + (deliveryFee || 0),
       original_subtotal: originalSubtotal,
       combo_discount: comboDiscount || 0,
+      payment_method: paymentMethod,
+      payment_forced: paymentForcedReason,
       comment: commentFinal
     };
 
