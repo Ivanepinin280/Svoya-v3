@@ -495,7 +495,7 @@ let state = {
   items: [],
   addons: {},
   restaurant: { lat: null, lng: null },
-  payment: { cashEnabled: true, qrImageUrl: '', qrNote: '' },
+  payment: { cashEnabled: true },
   favorites: [],
   cart: [],       // { id, name, price, qty, addon, addon_extra }
   history: [],
@@ -1327,14 +1327,12 @@ function openCheckout(){
       : (isMaxTier ? 'доставка по вашему адресу рассчитана по максимальному тарифу' : null);
 
     if (forcedReason) {
-      paymentMethod = 'qr';
+      paymentMethod = 'transfer';
       el.innerHTML = `
-        <div style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--ink-soft);background:var(--surface);border-radius:10px;padding:9px 10px;margin-bottom:8px;">
+        <div style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--ink-soft);background:var(--surface);border-radius:10px;padding:9px 10px;">
           <span style="flex-shrink:0;width:15px;height:15px;color:var(--accent);margin-top:1px;">${ICONS.warning}</span>
-          <span>Доступна только оплата по QR — ${forcedReason}.</span>
+          <span>Доступна только оплата переводом — ${forcedReason}. После подтверждения заказа администратор пришлёт точную сумму и реквизиты.</span>
         </div>
-        ${state.payment.qrImageUrl ? `<img src="${state.payment.qrImageUrl}" style="width:100%;max-width:220px;display:block;margin:0 auto 10px;border-radius:12px;border:1px solid var(--line);">` : ''}
-        ${state.payment.qrNote ? `<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;">${state.payment.qrNote}</div>` : ''}
       `;
       return;
     }
@@ -1347,24 +1345,23 @@ function openCheckout(){
           <span class="addon-name">Наличными при получении</span>
           <span></span>
         </label>
-        <label class="addon-option ${paymentMethod==='qr'?'selected':''}" data-pay="qr">
-          <input type="radio" name="paymentMethod" value="qr" ${paymentMethod==='qr'?'checked':''} style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
+        <label class="addon-option ${paymentMethod==='transfer'?'selected':''}" data-pay="transfer">
+          <input type="radio" name="paymentMethod" value="transfer" ${paymentMethod==='transfer'?'checked':''} style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
           <span class="addon-radio-dot"></span>
-          <span class="addon-name">Оплата по QR</span>
+          <span class="addon-name">Переводом</span>
           <span></span>
         </label>
       </div>
-      <div id="qrPreview" style="${paymentMethod==='qr' ? '' : 'display:none;'}margin-top:10px;">
-        ${state.payment.qrImageUrl ? `<img src="${state.payment.qrImageUrl}" style="width:100%;max-width:220px;display:block;margin:0 auto 10px;border-radius:12px;border:1px solid var(--line);">` : ''}
-        ${state.payment.qrNote ? `<div style="font-size:12.5px;color:var(--ink-soft);text-align:center;">${state.payment.qrNote}</div>` : ''}
+      <div id="transferNote" style="${paymentMethod==='transfer' ? '' : 'display:none;'}font-size:12px;color:var(--ink-soft);margin-top:8px;">
+        После подтверждения заказа администратор пришлёт точную сумму и реквизиты (или QR-код) для оплаты.
       </div>
     `;
     el.querySelectorAll('input[name="paymentMethod"]').forEach(inp => {
       inp.addEventListener('change', () => {
         paymentMethod = inp.value;
         el.querySelectorAll('.addon-option').forEach(opt => opt.classList.toggle('selected', opt.dataset.pay === paymentMethod));
-        const qrPreview = el.querySelector('#qrPreview');
-        if (qrPreview) qrPreview.style.display = paymentMethod === 'qr' ? '' : 'none';
+        const noteEl = el.querySelector('#transferNote');
+        if (noteEl) noteEl.style.display = paymentMethod === 'transfer' ? '' : 'none';
       });
     });
   }
