@@ -967,7 +967,7 @@ function openItemSheet(item, presetQty=0){
             <input type="${inputType}" name="addon" value="${i}" ${(!isMulti && i===0) ? 'checked' : ''} style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
             <span class="${isMulti ? 'addon-check-box' : 'addon-radio-dot'}">${isMulti ? ICONS.check : ''}</span>
             <span class="addon-name">${a.option_name}</span>
-            <span class="addon-price">${a.price_extra ? '+' + a.price_extra.toLocaleString('ru-RU') + ' VND' : ''}</span>
+            <span class="addon-price">${a.price_extra ? (a.price_extra > 0 ? '+' + a.price_extra.toLocaleString('ru-RU') : '−' + Math.abs(a.price_extra).toLocaleString('ru-RU')) + ' VND' : ''}</span>
           </label>
         `).join('')}
       </div>
