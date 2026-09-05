@@ -1502,8 +1502,8 @@ function openCheckout(){
         csSet(CS_KEY_CART, state.cart);
         updateCartBadge();
         closeOverlay('checkoutOverlay');
-        if (tg) tg.showAlert('Ваш заказ находится в обработке, с вами свяжется администратор.');
-        else alert('Ваш заказ находится в обработке, с вами свяжется администратор.');
+        if (tg) tg.showAlert('Ваш заказ принят. Доставка будет в течение часа. По дополнительным вопросам вы можете обратиться к администратору @svoyakuhnyaVN');
+        else alert('Ваш заказ принят. Доставка будет в течение часа. По дополнительным вопросам вы можете обратиться к администратору @svoyakuhnyaVN');
       } else if (res.error === 'insufficient_stock') {
         alert('Не хватает на складе: ' + res.details.map(d => d.name).join(', '));
         btn.disabled = false; btn.textContent = 'Заказать';
