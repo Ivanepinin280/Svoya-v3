@@ -708,20 +708,18 @@ function normalizeCatKey_(s){
     .replace(/[a-z]/g, ch => CYRILLIC_LOOKALIKE_MAP_[ch] || ch);
 }
 
-// Checks whether a chosen garnish/sauce/topping (from the addon picker) also
-// exists as its own standalone dish in the Menu sheet with is_combo=TRUE —
-// matched by name, tolerant of spacing/case/lookalike-letter differences.
-// addonName may be a single choice or several joined with ", " (multi-select
-// topping groups) — any one of them matching is enough.
-function isAddonComboEligible_(addonName){
-  if (!addonName) return false;
-  return addonName.split(',').some(part => {
-    const norm = normalizeCatKey_(part);
-    if (!norm) return false;
-    return state.items.some(i =>
-      (i.is_combo === true || i.is_combo === 'TRUE') && normalizeCatKey_(i.name) === norm
-    );
-  });
+// Per-dish opt-in: does the chosen garnish/sauce/topping count toward the
+// combo discount FOR THIS SPECIFIC DISH? Controlled by an optional
+// "combo_garnish_names" column in Menu, a comma-separated list of option
+// names (e.g. "Пюре, Макароны") that only applies to this one dish's row —
+// choosing that same garnish text on a different, unrelated dish never
+// counts, even though the option text is shared.
+function isDishGarnishComboEligible_(item, addonName){
+  if (!addonName || !item || !item.combo_garnish_names) return false;
+  const allowed = item.combo_garnish_names.toString().split(',')
+    .map(s => normalizeCatKey_(s)).filter(Boolean);
+  if (!allowed.length) return false;
+  return addonName.split(',').some(part => allowed.includes(normalizeCatKey_(part)));
 }
 
 function getItemCategory_(item){
@@ -1032,13 +1030,9 @@ function openItemSheet(item, presetQty=0){
 function addToCart(id, qty, addon=null, addonExtra=0){
   const item = state.items.find(i => String(i.id) === String(id));
   if (!item) return;
-  // A dish counts as combo-eligible either because it's flagged itself, or
-  // because the chosen garnish/sauce happens to also exist as its own
-  // standalone combo-flagged dish (matched by name) — so picking it via the
-  // addon picker counts the same as adding it separately would.
   const isCombo =
     item.is_combo === true || item.is_combo === 'TRUE' ||
-    isAddonComboEligible_(addon);
+    isDishGarnishComboEligible_(item, addon);
   const existing = state.cart.find(c => String(c.id) === String(id) && c.addon === addon);
   if (existing) { existing.qty += qty; }
   else {
@@ -1331,7 +1325,7 @@ function openCheckout(){
       el.innerHTML = `
         <div style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--ink-soft);background:var(--surface);border-radius:10px;padding:9px 10px;">
           <span style="flex-shrink:0;width:15px;height:15px;color:var(--accent);margin-top:1px;">${ICONS.warning}</span>
-          <span>Доступна только оплата переводом — ${forcedReason}. После подтверждения заказа администратор пришлёт точную сумму и реквизиты.</span>
+          <span>Доступна только оплата по VietQR — ${forcedReason}. После подтверждения заказа администратор пришлёт точную сумму и QR-код.</span>
         </div>
       `;
       return;
@@ -1348,12 +1342,12 @@ function openCheckout(){
         <label class="addon-option ${paymentMethod==='transfer'?'selected':''}" data-pay="transfer">
           <input type="radio" name="paymentMethod" value="transfer" ${paymentMethod==='transfer'?'checked':''} style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
           <span class="addon-radio-dot"></span>
-          <span class="addon-name">Переводом</span>
+          <span class="addon-name">Перевод по VietQR</span>
           <span></span>
         </label>
       </div>
       <div id="transferNote" style="${paymentMethod==='transfer' ? '' : 'display:none;'}font-size:12px;color:var(--ink-soft);margin-top:8px;">
-        После подтверждения заказа администратор пришлёт точную сумму и реквизиты (или QR-код) для оплаты.
+        После подтверждения заказа администратор пришлёт точную сумму и QR-код VietQR для оплаты.
       </div>
     `;
     el.querySelectorAll('input[name="paymentMethod"]').forEach(inp => {
