@@ -663,7 +663,10 @@ async function renderTab(){
 
   let list = [];
   if (state.activeTab === 'combo') {
-    list = state.items.filter(i => i.is_combo === true || i.is_combo === 'TRUE');
+    list = state.items.filter(i =>
+      i.is_combo === true || i.is_combo === 'TRUE' ||
+      (i.combo_garnish_names && i.combo_garnish_names.toString().trim())
+    );
   } else if (state.activeTab === 'fav') {
     list = state.items.filter(i => state.favorites.includes(String(i.id)));
   } else if (state.activeTab === 'history') {
