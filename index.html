@@ -160,6 +160,13 @@
   .addon-option.selected .addon-check-box{ border-color:var(--accent); background:var(--accent); }
   .addon-option.selected .addon-check-box svg{ opacity:1; transform:scale(1); }
   .addon-name{ font-size:13.5px; font-weight:500; color:var(--ink); overflow-wrap:break-word; min-width:0; }
+  .addon-combo-badge{
+    display:inline-flex; align-items:center; gap:3px;
+    font-size:10px; font-weight:700; color:var(--accent);
+    background:rgba(201,154,60,0.12); border-radius:999px; padding:2px 7px;
+    vertical-align:middle; margin-left:2px;
+  }
+  .addon-combo-badge svg{ width:10px; height:10px; flex-shrink:0; }
   .addon-price{ font-size:12px; color:var(--ink-soft); white-space:nowrap; font-weight:600; }
   .addon-option.selected .addon-price{ color:var(--accent); }
 
@@ -642,7 +649,7 @@ document.querySelectorAll('.tab-btn').forEach(btn => {
   });
 });
 
-const CATEGORY_ORDER = ['Супы', 'Горячее', 'Гарнир', 'Салат', 'Блины', 'Напитки'];
+const CATEGORY_ORDER = ['Комплексный обед', 'Супы', 'Горячее', 'Гарнир', 'Салат', 'Блины', 'Напитки'];
 
 async function renderTab(){
   const grid = document.getElementById('menuGrid');
@@ -962,12 +969,17 @@ function openItemSheet(item, presetQty=0){
     <div class="price" style="margin-top:8px;">${Number(item.price).toLocaleString('ru-RU')} VND</div>
     ${addonOptions.length ? `
       <label class="field-label">${isMulti ? 'Выберите топинги' : 'Выберите гарнир / соус'}</label>
+      ${addonOptions.some(a => isDishGarnishComboEligible_(item, a.option_name)) ? `
+      <div style="display:flex;gap:6px;align-items:center;font-size:11.5px;color:var(--ink-soft);margin-bottom:8px;">
+        <span style="flex-shrink:0;width:13px;height:13px;color:var(--accent);">${ICONS.percentBadge}</span>
+        <span>Отмеченные варианты засчитываются в скидку «Собери комбо»</span>
+      </div>` : ''}
       <div id="addonList" style="display:flex;flex-direction:column;gap:9px;">
         ${addonOptions.map((a,i) => `
           <label class="addon-option ${(!isMulti && i===0) ? 'selected' : ''}">
             <input type="${inputType}" name="addon" value="${i}" ${(!isMulti && i===0) ? 'checked' : ''} style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
             <span class="${isMulti ? 'addon-check-box' : 'addon-radio-dot'}">${isMulti ? ICONS.check : ''}</span>
-            <span class="addon-name">${a.option_name}</span>
+            <span class="addon-name">${a.option_name}${isDishGarnishComboEligible_(item, a.option_name) ? ` <span class="addon-combo-badge">${ICONS.percentBadge}−10%</span>` : ''}</span>
             <span class="addon-price">${a.price_extra ? (a.price_extra > 0 ? '+' + a.price_extra.toLocaleString('ru-RU') : '−' + Math.abs(a.price_extra).toLocaleString('ru-RU')) + ' VND' : ''}</span>
           </label>
         `).join('')}
