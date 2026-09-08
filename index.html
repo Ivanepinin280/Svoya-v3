@@ -483,8 +483,8 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbxMqrMTP_aRWWAqknhof6MQ
 const DELIVERY_TIERS = [
   { upTo: 1,    fee: 30000 },
   { upTo: 2,    fee: 40000 },
-  { upTo: 3,    fee: 40000 },
-  { upTo: 5,    fee: 50000 },
+  { upTo: 3,    fee: 45000 },
+  { upTo: 5,    fee: 48000 },
   { upTo: Infinity, fee: 50000 }
 ];
 
@@ -727,9 +727,17 @@ function normalizeCatKey_(s){
 function isDishGarnishComboEligible_(item, addonName){
   if (!addonName || !item || !item.combo_garnish_names) return false;
   const allowed = item.combo_garnish_names.toString().split(',')
-    .map(s => normalizeCatKey_(s)).filter(Boolean);
+    .map(s => normalizeCatKey_(s))
+    .filter(s => s && s !== 'true' && s !== 'false'); // guard against a stray TRUE/FALSE pasted here by mistake
   if (!allowed.length) return false;
   return addonName.split(',').some(part => allowed.includes(normalizeCatKey_(part)));
+}
+
+// Optional per-dish override: is_available=FALSE always means sold out, no
+// matter what number is in stock (lets you 86 a dish instantly without
+// touching its quantity). Blank/TRUE/missing column = normal stock rules.
+function isItemMarkedUnavailable_(item){
+  return String(item.is_available).trim().toUpperCase() === 'FALSE';
 }
 
 function getItemCategory_(item){
@@ -885,7 +893,7 @@ function renderCard(item, idx){
   el.style.animationDelay = (idx * 0.04) + 's';
   const isFav = state.favorites.includes(String(item.id));
   const stock = Number(item.stock) || 0;
-  const outOfStock = stock <= 0;
+  const outOfStock = stock <= 0 || isItemMarkedUnavailable_(item);
 
   el.innerHTML = `
     <div class="img-wrap" data-open="${item.id}">
@@ -959,6 +967,7 @@ function openItemSheet(item, presetQty=0){
   const isMulti = !!(addonGroup && addonGroup.multi);
   const addonOptions = addonGroup ? addonGroup.options : [];
   const stock = Number(item.stock) || 0;
+  const outOfStock = stock <= 0 || isItemMarkedUnavailable_(item);
   const inputType = isMulti ? 'checkbox' : 'radio';
 
   sheet.innerHTML = `
@@ -991,8 +1000,8 @@ function openItemSheet(item, presetQty=0){
         <span id="sheetQtyVal">${presetQty}</span>
         <button id="sheetQtyPlus">${ICONS.plus}</button>
       </div>
-      <button class="add-btn" id="sheetAddBtn" style="flex:1;margin-left:12px;justify-content:center;" ${stock<=0?'disabled':''}>
-        ${stock<=0 ? '' : ICONS.cartAdd}${stock<=0 ? 'Нет в наличии' : 'Добавить в корзину'}
+      <button class="add-btn" id="sheetAddBtn" style="flex:1;margin-left:12px;justify-content:center;" ${outOfStock?'disabled':''}>
+        ${outOfStock ? '' : ICONS.cartAdd}${outOfStock ? 'Нет в наличии' : 'Добавить в корзину'}
       </button>
     </div>
   `;
@@ -1333,7 +1342,7 @@ function openCheckout(){
     const isMaxTier = deliveryFee !== null && deliveryFee === maxTierFee;
     const forcedReason = !state.payment.cashEnabled
       ? 'сейчас принимаются только безналичные заказы'
-      : (isMaxTier ? 'доставка по вашему адресу рассчитана по максимальному тарифу, администратор расчитает в ручную сумму доставки и сообщит вам' : null);
+      : (isMaxTier ? 'доставка по вашему адресу рассчитана по максимальному тарифу' : null);
 
     if (forcedReason) {
       paymentMethod = 'transfer';
