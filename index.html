@@ -482,9 +482,7 @@ const API_URL = 'https://script.google.com/macros/s/AKfycbxMqrMTP_aRWWAqknhof6MQ
 
 const DELIVERY_TIERS = [
   { upTo: 1,    fee: 30000 },
-  { upTo: 2,    fee: 40000 },
   { upTo: 3,    fee: 40000 },
-  { upTo: 5,    fee: 50000 },
   { upTo: Infinity, fee: 50000 }
 ];
 
@@ -1342,7 +1340,7 @@ function openCheckout(){
     const isMaxTier = deliveryFee !== null && deliveryFee === maxTierFee;
     const forcedReason = !state.payment.cashEnabled
       ? 'сейчас принимаются только безналичные заказы'
-      : (isMaxTier ? 'доставка по вашему адресу рассчитана по максимальному тарифу, администратор в ручную проверит стоимость доставки по вашему адресу и сообщит вам' : null);
+      : (isMaxTier ? 'доставка по вашему адресу рассчитана по максимальному тарифу' : null);
 
     if (forcedReason) {
       paymentMethod = 'transfer';
