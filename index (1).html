@@ -1,0 +1,1771 @@
+<!DOCTYPE html>
+<html lang="ru">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+<title>Своя кухня — доставка еды</title>
+<script src="https://telegram.org/js/telegram-web-app.js"></script>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,500;9..144,600;9..144,700&family=Inter:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --ink: #1D1D1F;         /* near-black text, Apple-style */
+    --ink-soft: #6E6E73;    /* secondary gray text */
+    --bg: #FFFFFF;
+    --surface: #F5F5F7;     /* light gray surface */
+    --surface-dim: #EDEDF0;
+    --accent: #C99A3C;      /* warm gold from the logo — the one accent color */
+    --accent-light: #E6C570;
+    --leaf: #1D1D1F;        /* remapped: "leaf" now means primary ink/black for buttons */
+    --leaf-dark: #000000;
+    --lacquer: #C0392B;     /* reserved for errors / destructive states only */
+    --paper: #FFFFFF;
+    --paper-dim: #F5F5F7;
+    --line: rgba(0,0,0,0.08);
+    --shadow-soft: 0 10px 24px rgba(0,0,0,0.08);
+  }
+  *{box-sizing:border-box;}
+  body{
+    margin:0; background:var(--bg); color:var(--ink);
+    font-family:'Inter', sans-serif;
+    -webkit-tap-highlight-color: transparent;
+    overscroll-behavior-y: contain;
+  }
+  .font-display{ font-family:'Fraunces', serif; }
+  svg{ display:block; }
+
+  /* ---------- Splash: static banner photo + text caption carousel ---------- */
+  #splash{
+    position:fixed; inset:0; z-index:999;
+    background:#0a0a0a url('baner1.jpg') center / cover no-repeat;
+    overflow:hidden;
+    transition:opacity .5s ease, visibility .5s ease;
+  }
+  #splash.hide{ opacity:0; visibility:hidden; pointer-events:none; }
+
+  .splash-shade{
+    position:absolute; inset:0; z-index:2;
+    background:
+      linear-gradient(180deg, rgba(0,0,0,0.55) 0%, rgba(0,0,0,0.05) 22%, rgba(0,0,0,0.05) 45%, rgba(0,0,0,0.94) 100%);
+  }
+  .splash-top{
+    position:absolute; top:28px; left:0; right:0; z-index:3;
+    display:flex; flex-direction:column; align-items:center;
+  }
+  .splash-badge{
+    width:50px; height:50px; border-radius:50%; overflow:hidden;
+    box-shadow:0 6px 18px rgba(0,0,0,0.45); border:1.5px solid rgba(255,255,255,0.25);
+  }
+  .splash-badge img{ width:100%; height:100%; object-fit:cover; display:block; }
+  .splash-brand{
+    color:#fff; margin-top:12px; font-size:12px; letter-spacing:.22em; font-weight:600;
+  }
+
+  .splash-bottom{ position:absolute; left:24px; right:24px; bottom:34px; z-index:3; }
+  .splash-cap{
+    color:#fff; font-size:16px; font-weight:600; margin:0 0 5px; font-family:'Fraunces', serif;
+    min-height:22px;
+  }
+  .splash-sub{ color:rgba(255,255,255,0.5); font-size:11.5px; margin:0; line-height:1.4; }
+  .splash-dots{ display:flex; gap:6px; margin-top:16px; }
+  .splash-dot{ width:5px; height:5px; border-radius:50%; background:rgba(255,255,255,0.25); transition:background .3s ease, width .3s ease; }
+  .splash-dot.on{ background:var(--accent); width:16px; border-radius:3px; }
+
+  /* Keep the phone-shaped experience centered on wide desktop screens too,
+     instead of stretching full-bleed across a browser window. */
+  @media (min-width:560px){
+    body{ max-width:480px; margin:0 auto; min-height:100vh; box-shadow:0 0 60px rgba(0,0,0,0.12); }
+    #splash{ left:50%; right:auto; width:480px; margin-left:-240px; }
+  }
+
+  /* ---------- Header ---------- */
+  header.app-header{
+    background:#FFFFFF; color:var(--ink); padding:20px 18px 16px;
+    border-bottom:1px solid var(--line);
+    position:relative; overflow:hidden;
+    display:flex; align-items:center; gap:14px;
+  }
+  header .header-logo{
+    width:50px; height:50px; border-radius:50%; flex-shrink:0; position:relative;
+    box-shadow:0 4px 14px rgba(0,0,0,0.12);
+  }
+  header .header-logo img{ width:100%; height:100%; border-radius:50%; display:block; }
+  header .header-text{ position:relative; min-width:0; }
+  header .brand-title{ font-size:22px; font-weight:700; letter-spacing:.01em; color:var(--ink); }
+  header .brand-slogan{ font-size:12.5px; color:var(--ink-soft); margin-top:3px; }
+  header .brand-hours{ font-size:11px; color:var(--accent); margin-top:8px; font-weight:600; }
+
+  /* ---------- Tabs ---------- */
+  .tabs{
+    display:flex; gap:6px; padding:14px 14px 0; position:relative;
+    overflow-x:auto; scrollbar-width:none; -webkit-overflow-scrolling:touch;
+  }
+  .tabs::-webkit-scrollbar{ display:none; }
+  .tab-btn{
+    flex:0 0 auto; text-align:center; padding:9px 14px; font-size:12.5px; font-weight:600;
+    border-radius:12px; background:var(--surface); color:var(--ink-soft); border:1px solid transparent;
+    transition:background .25s ease, color .25s ease, transform .15s ease;
+    white-space:nowrap;
+  }
+  .tab-btn:active{ transform:scale(.96); }
+  .tab-btn.active{ background:var(--ink); color:#fff; box-shadow:var(--shadow-soft); }
+
+  /* ---------- Category sections (Меню tab) ---------- */
+  .category-section{ margin-bottom:8px; }
+  .category-section:first-child .category-heading{ margin-top:0; }
+  .category-heading{
+    display:flex; align-items:center; gap:10px;
+    margin:26px 2px 14px;
+  }
+  .category-heading::before{
+    content:''; width:4px; height:18px; border-radius:3px;
+    background:linear-gradient(180deg, var(--accent-light), var(--accent));
+    flex-shrink:0;
+  }
+  .category-heading .cat-title{
+    font-family:'Fraunces', serif; font-size:17px; font-weight:600; color:var(--ink);
+  }
+  .category-heading .cat-badge{
+    font-family:'Inter', sans-serif; font-size:11px; font-weight:700; color:var(--ink-soft);
+    background:var(--surface); border-radius:999px; padding:3px 9px;
+  }
+  .category-heading::after{ content:''; flex:1; height:1px; background:var(--line); }
+  .category-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; }
+
+  /* ---------- Addon / garnish picker ---------- */
+  .addon-option{
+    display:grid; grid-template-columns:22px minmax(0,1fr) auto; align-items:center; gap:11px;
+    background:#fff; border:1.5px solid var(--line); border-radius:13px; padding:12px 13px;
+    transition:border-color .2s ease, background .2s ease;
+  }
+  .addon-option.selected{ border-color:var(--accent); background:rgba(201,154,60,0.07); }
+  .addon-radio-dot{
+    width:20px; height:20px; border-radius:50%; border:2px solid var(--line);
+    display:flex; align-items:center; justify-content:center; position:relative; flex-shrink:0;
+    transition:border-color .2s ease;
+  }
+  .addon-option.selected .addon-radio-dot{ border-color:var(--accent); }
+  .addon-radio-dot::after{
+    content:''; width:10px; height:10px; border-radius:50%; background:var(--accent);
+    opacity:0; transform:scale(.4);
+    transition:opacity .15s ease, transform .15s cubic-bezier(.34,1.56,.64,1);
+  }
+  .addon-option.selected .addon-radio-dot::after{ opacity:1; transform:scale(1); }
+  .addon-check-box{
+    width:20px; height:20px; border-radius:6px; border:2px solid var(--line);
+    display:flex; align-items:center; justify-content:center; flex-shrink:0;
+    transition:border-color .2s ease, background .2s ease;
+  }
+  .addon-check-box svg{ width:12px; height:12px; color:#fff; opacity:0; transform:scale(.5); transition:opacity .15s ease, transform .15s cubic-bezier(.34,1.56,.64,1); }
+  .addon-option.selected .addon-check-box{ border-color:var(--accent); background:var(--accent); }
+  .addon-option.selected .addon-check-box svg{ opacity:1; transform:scale(1); }
+  .addon-name{ font-size:13.5px; font-weight:500; color:var(--ink); overflow-wrap:break-word; min-width:0; }
+  .addon-combo-badge{
+    display:inline-flex; align-items:center; gap:3px;
+    font-size:10px; font-weight:700; color:var(--accent);
+    background:rgba(201,154,60,0.12); border-radius:999px; padding:2px 7px;
+    vertical-align:middle; margin-left:2px;
+  }
+  .addon-combo-badge svg{ width:10px; height:10px; flex-shrink:0; }
+  .addon-price{ font-size:12px; color:var(--ink-soft); white-space:nowrap; font-weight:600; }
+  .addon-option.selected .addon-price{ color:var(--accent); }
+
+  /* ---------- Grid / Cards ---------- */
+  .menu-grid{ display:grid; grid-template-columns:1fr 1fr; gap:12px; padding:16px; }
+  .card{
+    background:#fff; border-radius:16px; overflow:hidden; border:1px solid var(--line);
+    opacity:0; transform:translateY(14px); box-shadow:0 3px 10px rgba(35,43,20,0.06);
+    animation: cardIn .5s cubic-bezier(.2,.8,.3,1) forwards;
+    transition:box-shadow .25s ease, transform .25s ease;
+  }
+  @keyframes cardIn{ to{ opacity:1; transform:translateY(0); } }
+  .card .img-wrap{ position:relative; aspect-ratio:1/0.8; overflow:hidden; background:var(--paper-dim); }
+  .card .img-wrap img{ width:100%; height:100%; object-fit:cover; transition:transform .4s cubic-bezier(.2,.8,.3,1); }
+  .card:active .img-wrap img{ transform:scale(1.07); }
+  .card .fav-btn{
+    position:absolute; top:8px; right:8px; width:30px; height:30px; border-radius:50%;
+    background:rgba(255,255,255,0.92); display:flex; align-items:center; justify-content:center;
+    box-shadow:0 2px 6px rgba(0,0,0,0.15); transition:transform .2s cubic-bezier(.34,1.56,.64,1);
+  }
+  .card .fav-btn:active{ transform:scale(.85); }
+  .card .fav-btn svg{ transition:transform .3s cubic-bezier(.34,1.56,.64,1); }
+  .card .fav-btn.just-fav svg{ animation:favPop .4s cubic-bezier(.34,1.56,.64,1); }
+  @keyframes favPop{ 0%{ transform:scale(1); } 45%{ transform:scale(1.35); } 100%{ transform:scale(1); } }
+  .card .stock-badge{
+    position:absolute; left:8px; top:8px; font-size:10px; padding:4px 9px 4px 7px; border-radius:999px;
+    background:rgba(29,29,31,0.82); color:#fff; display:flex; align-items:center; gap:4px;
+    backdrop-filter:blur(2px);
+  }
+  .card .stock-badge svg{ width:10px; height:10px; flex-shrink:0; }
+  .card .stock-badge.out{ background:rgba(168,52,42,0.92); }
+  .card .body{ padding:10px 10px 12px; }
+  .card .name{ font-weight:600; font-size:13.5px; line-height:1.25; }
+  .card .desc{ font-size:11.5px; color:var(--ink-soft); margin-top:2px; height:28px; overflow:hidden; }
+  .card .price{ font-family:'Fraunces',serif; font-weight:700; color:var(--ink); font-size:14.5px; margin-top:6px; }
+  .card .add-row{ display:flex; flex-direction:column; align-items:stretch; gap:7px; margin-top:8px; }
+  .qty-pill{
+    position:relative;
+    display:flex; align-items:center; justify-content:center; gap:3px;
+    background:rgba(255,255,255,0.4);
+    backdrop-filter:blur(10px) saturate(160%);
+    -webkit-backdrop-filter:blur(10px) saturate(160%);
+    border-radius:999px; padding:3px; align-self:center;
+    border:1px solid rgba(255,255,255,0.55);
+    box-shadow:
+      0 4px 14px rgba(0,0,0,0.06),
+      inset 0 1px 1px rgba(255,255,255,0.85),
+      inset 0 -1px 2px rgba(0,0,0,0.04);
+  }
+  .qty-pill::before{
+    content:''; position:absolute; inset:-7px; z-index:-1; border-radius:999px;
+    background:radial-gradient(circle at 28% 15%, rgba(201,154,60,0.16), transparent 65%);
+    filter:blur(5px); pointer-events:none;
+  }
+  .qty-pill button{
+    position:relative; overflow:hidden;
+    width:28px; height:28px; border-radius:50%;
+    background:linear-gradient(155deg, rgba(255,255,255,0.95), rgba(255,255,255,0.5));
+    backdrop-filter:blur(6px); -webkit-backdrop-filter:blur(6px);
+    border:1px solid rgba(255,255,255,0.75);
+    color:var(--ink);
+    display:flex; align-items:center; justify-content:center;
+    box-shadow:
+      0 2px 5px rgba(0,0,0,0.10),
+      inset 0 1px 1px rgba(255,255,255,0.95),
+      inset 0 -2px 3px rgba(0,0,0,0.06);
+    transition:transform .18s cubic-bezier(.34,1.56,.64,1), background .25s ease, color .2s ease, box-shadow .2s ease;
+  }
+  .qty-pill button::before{
+    content:''; position:absolute; top:8%; left:18%; right:18%; height:40%;
+    background:linear-gradient(180deg, rgba(255,255,255,0.95), rgba(255,255,255,0));
+    border-radius:50%; pointer-events:none; transition:opacity .2s ease;
+  }
+  .qty-pill button::after{
+    content:''; position:absolute; inset:0; border-radius:50%; pointer-events:none;
+    box-shadow:
+      inset 1px 1px 1px rgba(255,255,255,0.7),
+      inset -1px -1px 2.5px rgba(130,150,210,0.16);
+  }
+  .qty-pill button:active{
+    transform:scale(.82);
+    background:linear-gradient(155deg, rgba(29,29,31,0.92), rgba(29,29,31,0.8));
+    color:#fff;
+    box-shadow:0 1px 2px rgba(0,0,0,0.25), inset 0 1px 1px rgba(255,255,255,0.18);
+  }
+  .qty-pill button:active::before{ opacity:.25; }
+  .qty-pill button svg{ position:relative; z-index:1; width:12px; height:12px; }
+  .qty-pill span{ min-width:22px; text-align:center; font-size:13.5px; font-weight:700; font-variant-numeric:tabular-nums; position:relative; z-index:1; }
+
+  .add-btn{
+    background:linear-gradient(155deg, var(--accent-light) 0%, var(--accent) 100%);
+    color:#1D1D1F; font-size:12px; font-weight:700;
+    padding:8px 13px; border-radius:999px; display:inline-flex; align-items:center; gap:5px;
+    box-shadow:0 4px 10px rgba(201,154,60,0.4);
+    transition:transform .18s cubic-bezier(.34,1.56,.64,1), box-shadow .2s ease, filter .2s ease;
+  }
+  .add-btn svg{ width:13px; height:13px; }
+  .add-btn:active{ transform:scale(.92); box-shadow:0 2px 5px rgba(201,154,60,0.35); }
+  .add-btn:disabled{
+    background:#ddd6c4; color:#9a9a8c; box-shadow:none; transform:none;
+  }
+  .add-btn.just-added{ animation:addPulse .45s cubic-bezier(.34,1.56,.64,1); }
+  @keyframes addPulse{
+    0%{ transform:scale(1); }
+    40%{ transform:scale(1.14); filter:brightness(1.1); }
+    100%{ transform:scale(1); }
+  }
+  .card .add-btn{ width:100%; justify-content:center; }
+
+  /* ---------- Floating cart ---------- */
+  #cartFab{
+    position:fixed; width:58px; height:58px; border-radius:50%; background:var(--ink);
+    display:flex; align-items:center; justify-content:center; box-shadow:0 8px 20px rgba(0,0,0,0.3);
+    z-index:60; touch-action:none; color:#fff;
+  }
+  #cartFab .badge{
+    position:absolute; top:-4px; right:-4px; background:var(--accent); color:#1D1D1F;
+    font-size:11px; font-weight:700; min-width:20px; height:20px; border-radius:999px;
+    display:flex; align-items:center; justify-content:center; padding:0 4px;
+  }
+  #cartFab{ transition:transform .3s cubic-bezier(.34,1.56,.64,1); }
+  #cartFab.bump{ animation:cartBump .5s cubic-bezier(.34,1.56,.64,1); }
+  @keyframes cartBump{
+    0%{ transform:scale(1) rotate(0); }
+    30%{ transform:scale(1.18) rotate(-6deg); }
+    60%{ transform:scale(.96) rotate(4deg); }
+    100%{ transform:scale(1) rotate(0); }
+  }
+
+  /* ---------- Modal / sheets ---------- */
+  .sheet-overlay{
+    position:fixed; inset:0; background:rgba(0,0,0,0.45); z-index:80;
+    display:flex; align-items:flex-end; opacity:0; pointer-events:none; transition:opacity .25s ease;
+    backdrop-filter:blur(2px);
+  }
+  .sheet-overlay.open{ opacity:1; pointer-events:auto; }
+  .sheet{
+    background:#fff; width:100%; max-height:88vh; overflow-y:auto; overflow-x:hidden;
+    border-top-left-radius:22px; border-top-right-radius:22px; padding:18px;
+    transform:translateY(24px); transition:transform .3s cubic-bezier(.2,.8,.3,1);
+    box-shadow:0 -8px 30px rgba(0,0,0,0.15);
+    box-sizing:border-box;
+  }
+  .sheet-overlay.open .sheet{ transform:translateY(0); }
+  .sheet-handle{ width:36px; height:4px; background:var(--surface-dim); border-radius:99px; margin:0 auto 14px; }
+
+  input, textarea{
+    width:100%; padding:11px 13px; border-radius:12px; border:1px solid var(--line);
+    background:var(--surface); font-size:14px; font-family:inherit; color:var(--ink);
+    transition:border-color .2s ease, background .2s ease;
+  }
+  input:focus, textarea:focus{ outline:none; border-color:var(--ink); background:#fff; }
+  label.field-label{ font-size:12px; font-weight:600; color:var(--ink-soft); margin:12px 0 5px; display:block; text-transform:uppercase; letter-spacing:.04em; }
+
+  .primary-btn{
+    width:100%; background:var(--ink); color:#fff; font-weight:700; font-size:15px;
+    padding:15px; border-radius:14px; margin-top:16px; display:flex; align-items:center; justify-content:center; gap:9px;
+    transition:transform .15s cubic-bezier(.34,1.56,.64,1), background .2s ease, box-shadow .2s ease;
+    box-shadow:0 6px 16px rgba(0,0,0,0.16);
+  }
+  .primary-btn svg{ width:19px; height:19px; flex-shrink:0; }
+  .primary-btn:active{ transform:scale(.98); }
+  .primary-btn:disabled{ background:var(--surface-dim); color:var(--ink-soft); box-shadow:none; transform:none; }
+  .secondary-btn{
+    width:100%; background:#fff; color:var(--ink); font-weight:600; font-size:13px;
+    padding:10px; border-radius:12px; border:1px solid var(--line); margin-top:8px;
+    display:flex; align-items:center; justify-content:center; gap:7px;
+    transition:transform .15s ease, background .2s ease, border-color .2s ease;
+  }
+  .secondary-btn:active{ transform:scale(.97); background:var(--surface); }
+  .secondary-btn svg{ width:15px; height:15px; flex-shrink:0; }
+
+  .empty-state{ text-align:center; padding:60px 24px; color:var(--ink-soft); }
+  .category-nav-btn{
+    position:sticky; top:8px; z-index:40;
+    display:flex; align-items:center; justify-content:center; gap:7px;
+    margin:14px 16px 0; padding:11px 14px; border-radius:14px;
+    background:#fff; color:var(--ink); font-size:13px; font-weight:600;
+    border:1px solid var(--line); box-shadow:0 6px 16px rgba(0,0,0,0.1);
+    transition:transform .15s ease, background .2s ease;
+  }
+  .category-nav-btn:active{ transform:scale(.97); background:var(--surface); }
+  .category-nav-btn svg{ width:16px; height:16px; flex-shrink:0; color:var(--accent); }
+  .category-list-row{
+    display:flex; align-items:center; justify-content:space-between; gap:10px;
+    padding:14px 4px; border-bottom:1px solid var(--line);
+  }
+  .category-list-row:last-child{ border-bottom:none; }
+  .category-list-row .cat-name{ font-size:14.5px; font-weight:600; color:var(--ink); }
+  .category-list-row .cat-count{ font-size:12px; color:var(--ink-soft); margin-left:6px; font-weight:400; }
+  .category-list-row svg{ width:16px; height:16px; color:var(--ink-soft); flex-shrink:0; transform:rotate(-90deg); }
+  .category-list-row:active{ background:var(--surface); }
+  .combo-banner{
+    margin:14px 16px 0; padding:11px 14px; border-radius:14px;
+    background:linear-gradient(155deg, rgba(201,154,60,0.13), rgba(201,154,60,0.05));
+    border:1px solid rgba(201,154,60,0.3);
+    display:flex; align-items:center; gap:10px; font-size:12.5px; color:var(--ink);
+  }
+  .combo-banner svg{ width:20px; height:20px; flex-shrink:0; color:var(--accent); }
+  .combo-banner b{ color:var(--accent); font-weight:700; }
+  .link-toggle{
+    display:flex; align-items:center; gap:5px; background:none; border:none; padding:8px 2px 4px;
+    font-size:12.5px; font-weight:600; color:var(--ink-soft); width:100%; text-align:left;
+  }
+  .link-toggle svg{ width:13px; height:13px; transition:transform .25s ease; flex-shrink:0; }
+  .link-toggle.open svg{ transform:rotate(180deg); }
+  .manual-geo-panel{
+    margin-top:4px; padding:12px; background:var(--surface); border-radius:12px;
+    overflow:hidden; max-height:0; opacity:0; transition:max-height .3s ease, opacity .25s ease, padding .3s ease;
+  }
+  .manual-geo-panel.open{ max-height:260px; opacity:1; }
+  .manual-geo-panel input{ background:#fff; }
+  .manual-geo-hint{ font-size:11px; color:var(--ink-soft); margin-top:8px; line-height:1.45; }
+  .toast{
+    position:fixed; bottom:22px; left:50%; transform:translateX(-50%);
+    background:var(--ink); color:#fff; padding:11px 18px; border-radius:999px;
+    font-size:13px; z-index:200; opacity:0; transition:opacity .25s ease, transform .25s ease; pointer-events:none;
+    box-shadow:0 8px 20px rgba(0,0,0,0.25);
+  }
+  .toast.show{ opacity:1; transform:translateX(-50%) translateY(-4px); }
+</style>
+</head>
+<body>
+
+<div id="splash">
+  <div class="splash-shade"></div>
+  <div class="splash-top">
+    <div class="splash-badge"><img src="logo.png" alt="Своя кухня"></div>
+    <div class="splash-brand">СВОЯ КУХНЯ</div>
+  </div>
+  <div class="splash-bottom">
+    <div class="splash-cap" id="splashCap">Загружаем меню…</div>
+    <div class="splash-sub">Готовим с заботой — каждый раз свежее</div>
+    <div class="splash-dots" id="splashDots">
+      <div class="splash-dot"></div><div class="splash-dot"></div><div class="splash-dot"></div>
+      <div class="splash-dot"></div><div class="splash-dot"></div>
+    </div>
+  </div>
+</div>
+
+<header class="app-header">
+
+  <div class="header-logo"><img src="logo.png" alt="Своя кухня"></div>
+  <div class="header-text">
+    <div class="brand-title font-display">Своя кухня</div>
+    <div class="brand-slogan">Доставка авторской домашней еды по Нячангу</div>
+
+    <div class="brand-hours" id="hoursLine">ПН-ПТ: 11:00 – 20:00 · СБ-ВС: выходные</div>
+  </div>
+</header>
+
+<div class="tabs">
+  <button class="tab-btn active" data-tab="catalog">Меню</button>
+  <button class="tab-btn" data-tab="combo">Собери комбо</button>
+  <button class="tab-btn" data-tab="fav">Избранное</button>
+  <button class="tab-btn" data-tab="history">История</button>
+</div>
+
+<button id="categoryNavBtn" class="category-nav-btn" style="display:none;"></button>
+<div id="comboBanner" class="combo-banner" style="display:none;"></div>
+<div id="menuGrid" class="menu-grid"></div>
+
+<!-- Category picker sheet -->
+<div class="sheet-overlay" id="categoryOverlay">
+  <div class="sheet" id="categorySheet"></div>
+</div>
+<div id="emptyState" class="empty-state" style="display:none;"></div>
+
+<!-- Floating draggable cart -->
+<div id="cartFab">
+  <svg width="24" height="24" viewBox="0 0 24 24" fill="none"><path d="M3 3h2l2.4 12.2a2 2 0 0 0 2 1.6h7.2a2 2 0 0 0 2-1.6L21 8H6" stroke="white" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="21" r="1.4" fill="white"/><circle cx="18" cy="21" r="1.4" fill="white"/></svg>
+  <div class="badge" id="cartBadge" style="display:none;">0</div>
+</div>
+
+<!-- Item detail / addon modal -->
+<div class="sheet-overlay" id="itemOverlay">
+  <div class="sheet" id="itemSheet"></div>
+</div>
+
+<!-- Cart sheet -->
+<div class="sheet-overlay" id="cartOverlay">
+  <div class="sheet" id="cartSheet"></div>
+</div>
+
+<!-- Checkout sheet -->
+<div class="sheet-overlay" id="checkoutOverlay">
+  <div class="sheet" id="checkoutSheet"></div>
+</div>
+
+<div class="toast" id="toast"></div>
+
+<script>
+/* =========================================================
+   ICONS — inline SVG, no emoji anywhere
+========================================================= */
+const ICONS = {
+  plus: `<svg viewBox="0 0 24 24" fill="none"><path d="M12 5v14M5 12h14" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>`,
+  minus: `<svg viewBox="0 0 24 24" fill="none"><path d="M5 12h14" stroke="currentColor" stroke-width="2.6" stroke-linecap="round"/></svg>`,
+  cartAdd: `<svg viewBox="0 0 24 24" fill="none"><path d="M3 3h2l2.4 12.2a2 2 0 0 0 2 1.6h7.2a2 2 0 0 0 2-1.6L21 8H6" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"/><circle cx="9" cy="21" r="1.3" fill="currentColor"/><circle cx="18" cy="21" r="1.3" fill="currentColor"/><path d="M15 6v5M12.5 8.5h5" stroke="currentColor" stroke-width="2" stroke-linecap="round"/></svg>`,
+  box: `<svg viewBox="0 0 24 24" fill="none"><path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5v-9Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="M3.5 7.5 12 12l8.5-4.5M12 12v9" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/></svg>`,
+  boxOff: `<svg viewBox="0 0 24 24" fill="none"><path d="M3.5 7.5 12 3l8.5 4.5v9L12 21l-8.5-4.5v-9Z" stroke="currentColor" stroke-width="1.6" stroke-linejoin="round"/><path d="m8.5 9 7 6M15.5 9l-7 6" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>`,
+  pin: `<svg viewBox="0 0 24 24" fill="none"><path d="M12 21s-7-6.1-7-11.5A7 7 0 0 1 19 9.5C19 14.9 12 21 12 21Z" stroke="currentColor" stroke-width="1.8" stroke-linejoin="round"/><circle cx="12" cy="9.5" r="2.4" stroke="currentColor" stroke-width="1.8"/></svg>`,
+  warning: `<svg viewBox="0 0 24 24" fill="none"><path d="M12 3.5 21.5 20h-19L12 3.5Z" stroke="currentColor" stroke-width="1.7" stroke-linejoin="round"/><path d="M12 9.5v5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/><circle cx="12" cy="17.2" r="1" fill="currentColor"/></svg>`,
+  errorCircle: `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="1.7"/><path d="m9 9 6 6M15 9l-6 6" stroke="currentColor" stroke-width="1.8" stroke-linecap="round"/></svg>`,
+  chevronDown: `<svg viewBox="0 0 24 24" fill="none"><path d="m6 9 6 6 6-6" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  check: `<svg viewBox="0 0 24 24" fill="none"><path d="m5 12.5 5 5L19 7" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  percentBadge: `<svg viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9.5" stroke="currentColor" stroke-width="1.6"/><path d="M8.5 8.5h.01M15.5 15.5h.01M15.5 8.5 8.5 15.5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/></svg>`,
+  list: `<svg viewBox="0 0 24 24" fill="none"><path d="M8 6h13M8 12h13M8 18h13" stroke="currentColor" stroke-width="2" stroke-linecap="round"/><circle cx="3.5" cy="6" r="1.4" fill="currentColor"/><circle cx="3.5" cy="12" r="1.4" fill="currentColor"/><circle cx="3.5" cy="18" r="1.4" fill="currentColor"/></svg>`
+};
+
+
+const API_URL = 'https://script.google.com/macros/s/AKfycbxMqrMTP_aRWWAqknhof6MQDBxTMpsCWGIKEDhC_TqQ1lwglJCYg_yKw-B2uteLVCZy/exec';
+
+const DELIVERY_TIERS = [
+  { upTo: 1,    fee: 30000 },
+  { upTo: 3,    fee: 40000 },
+  { upTo: Infinity, fee: 50000 }
+];
+
+/* =========================================================
+   TELEGRAM SETUP
+========================================================= */
+const tg = window.Telegram ? window.Telegram.WebApp : null;
+if (tg) { tg.ready(); tg.expand(); }
+const tgUser = (tg && tg.initDataUnsafe && tg.initDataUnsafe.user) || null;
+
+/* =========================================================
+   STATE
+========================================================= */
+let state = {
+  items: [],
+  addons: {},
+  restaurant: { lat: null, lng: null },
+  zones: [], // [{ name, lat, lng, radius_km, fee }] — fixed-price delivery areas that override the distance tiers
+  payment: { cashEnabled: true },
+  favorites: [],
+  cart: [],       // { id, name, price, qty, addon, addon_extra }
+  history: [],
+  activeTab: 'catalog',
+  deliveryPoint: null, // { lat, lng }
+  savedContact: null, // { phone, address }
+  pickupAddress: ''
+};
+
+const CS_KEY_FAV = 'sk_favorites';
+const CS_KEY_CART = 'sk_cart';
+const CS_KEY_CONTACT = 'sk_contact'; // saved phone/address so customers don't retype every order
+
+// CloudStorage requires Bot API 6.9+. Outside real Telegram (plain browser testing)
+// or on older Telegram clients, calling it throws synchronously — always fall back
+// to localStorage safely instead of letting that break app init.
+function cloudStorageSupported(){
+  try {
+    return !!(tg && tg.CloudStorage && tg.isVersionAtLeast && tg.isVersionAtLeast('6.9'));
+  } catch(e){ return false; }
+}
+function csGet(key){
+  return new Promise(resolve => {
+    if (cloudStorageSupported()) {
+      try {
+        tg.CloudStorage.getItem(key, (err, value) => {
+          if (err || !value) { resolve(null); return; }
+          try { resolve(JSON.parse(value)); } catch(e){ resolve(null); }
+        });
+      } catch(e){
+        try { resolve(JSON.parse(localStorage.getItem(key))); } catch(e2){ resolve(null); }
+      }
+    } else {
+      try { resolve(JSON.parse(localStorage.getItem(key))); } catch(e){ resolve(null); }
+    }
+  });
+}
+function csSet(key, value){
+  const str = JSON.stringify(value);
+  if (cloudStorageSupported()) {
+    try { tg.CloudStorage.setItem(key, str); }
+    catch(e){ localStorage.setItem(key, str); }
+  } else {
+    localStorage.setItem(key, str);
+  }
+}
+
+/* =========================================================
+   API HELPERS
+========================================================= */
+async function apiGet(action, params={}){
+  const url = new URL(API_URL);
+  url.searchParams.set('action', action);
+  Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
+  const res = await fetch(url.toString());
+  return res.json();
+}
+async function apiPost(action, payload){
+  const res = await fetch(API_URL, {
+    method:'POST',
+    body: JSON.stringify({ action, payload })
+  });
+  return res.json();
+}
+
+/* =========================================================
+   INIT
+========================================================= */
+const SPLASH_CAPTIONS = [
+  'Загружаем меню…',
+  'Более 6 категорий блюд — на любой вкус',
+  'Собери комбо минимум из 4 блюд — скидка 10%',
+  'Поделитесь геопозицией — доставим быстрее',
+  'Всё готово — открываем меню…'
+];
+const SPLASH_SLIDE_MS = 3000;
+let splashTimer = null;
+let splashStep = 0;
+
+function splashTick(){
+  const capEl = document.getElementById('splashCap');
+  const dotsEl = document.getElementById('splashDots');
+  if (capEl) capEl.textContent = SPLASH_CAPTIONS[splashStep % SPLASH_CAPTIONS.length];
+  if (dotsEl) {
+    dotsEl.querySelectorAll('.splash-dot').forEach((d, i) => d.classList.toggle('on', i === splashStep % SPLASH_CAPTIONS.length));
+  }
+  splashStep++;
+}
+
+function startSplashCarousel(){
+  splashStep = 0;
+  splashTick();
+  splashTimer = setInterval(splashTick, SPLASH_SLIDE_MS);
+}
+function stopSplashCarousel(){
+  if (splashTimer) { clearInterval(splashTimer); splashTimer = null; }
+}
+
+function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
+
+async function fetchMenuWithRetry_(maxAttempts=3){
+  let lastError = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const res = await apiGet('getMenu');
+      if (res && res.ok) return res;
+      lastError = res; // got a response, but ok:false — Apps Script hiccup, worth retrying
+    } catch(e) {
+      lastError = e; // network error / non-JSON response (e.g. a transient Apps Script error page)
+    }
+    if (attempt < maxAttempts) await wait(700 * attempt); // 700ms, then 1400ms
+  }
+  console.error('getMenu failed after retries:', lastError);
+  return null;
+}
+
+async function init(){
+  startSplashCarousel();
+  try {
+    state.favorites = (await csGet(CS_KEY_FAV)) || [];
+    state.cart = (await csGet(CS_KEY_CART)) || [];
+    state.savedContact = (await csGet(CS_KEY_CONTACT)) || null; // { phone, address }
+
+    const minWait = wait(SPLASH_SLIDE_MS * 2); // floor so at least 2 captions show, even on a fast connection
+
+    const menuRes = await fetchMenuWithRetry_();
+    if (menuRes && menuRes.ok) {
+      state.items = menuRes.data.items;
+      state.addons = menuRes.data.addons;
+      state.restaurant = menuRes.data.restaurant;
+      if (menuRes.data.zones) state.zones = menuRes.data.zones;
+      if (menuRes.data.payment) state.payment = menuRes.data.payment;
+      state.pickupAddress = menuRes.data.pickupAddress || '';
+      document.getElementById('hoursLine').textContent =
+        `${menuRes.data.hours.weekday} · ${menuRes.data.hours.weekend}`;
+    } else {
+      showToast('Не удалось загрузить меню — потяните вниз или откройте заново');
+    }
+
+    await minWait;
+    renderTab();
+    updateCartBadge();
+  } catch(e){
+    console.error('init() failed:', e);
+  } finally {
+    // Always hide the splash, even if something above failed, so the app
+    // is never stuck on a frozen loading screen.
+    stopSplashCarousel();
+    document.getElementById('splash').classList.add('hide');
+  }
+}
+
+/* =========================================================
+   TABS
+========================================================= */
+document.querySelectorAll('.tab-btn').forEach(btn => {
+  btn.addEventListener('click', () => {
+    document.querySelectorAll('.tab-btn').forEach(b => b.classList.remove('active'));
+    btn.classList.add('active');
+    state.activeTab = btn.dataset.tab;
+    renderTab();
+  });
+});
+
+const CATEGORY_ORDER = ['Комплексный обед', 'Супы', 'Горячее', 'Гарнир', 'Салат', 'Блины', 'Напитки'];
+
+async function renderTab(){
+  const grid = document.getElementById('menuGrid');
+  const empty = document.getElementById('emptyState');
+  const comboBanner = document.getElementById('comboBanner');
+  const categoryNavBtn = document.getElementById('categoryNavBtn');
+  grid.innerHTML = '';
+  grid.style.gridTemplateColumns = ''; // reset any 1-column layout left over from History tab
+  grid.style.display = ''; // reset block-mode left over from the catalog tab
+
+  if (state.activeTab === 'catalog') {
+    comboBanner.style.display = 'none';
+    renderCatalog();
+    return;
+  }
+
+  categoryNavBtn.style.display = 'none';
+
+  let list = [];
+  if (state.activeTab === 'combo') {
+    list = state.items.filter(i =>
+      i.is_combo === true || i.is_combo === 'TRUE' ||
+      (i.combo_garnish_names && i.combo_garnish_names.toString().trim())
+    );
+  } else if (state.activeTab === 'fav') {
+    list = state.items.filter(i => state.favorites.includes(String(i.id)));
+  } else if (state.activeTab === 'history') {
+    comboBanner.style.display = 'none';
+    if (tgUser) {
+      const histRes = await apiGet('getHistory', { user_id: tgUser.id });
+      state.history = histRes.ok ? histRes.data : [];
+    }
+    renderHistory();
+    return;
+  }
+
+  if (state.activeTab === 'combo') {
+    comboBanner.style.display = 'flex';
+    comboBanner.innerHTML = `${ICONS.percentBadge}<span>Выберите минимум <b>${COMBO_MIN_ITEMS} блюда</b> из этой вкладки — вся сумма за них в корзине получит <b>скидку 10%</b> (без учёта доставки).</span>`;
+  } else {
+    comboBanner.style.display = 'none';
+  }
+
+  if (list.length === 0) {
+    empty.style.display = 'block';
+    empty.textContent = state.activeTab === 'fav'
+      ? 'Пока нет избранных блюд — нажмите на сердечко на карточке блюда.'
+      : 'Комбо-наборов пока нет.';
+    return;
+  }
+  empty.style.display = 'none';
+  list.forEach((item, idx) => grid.appendChild(renderCard(item, idx)));
+}
+
+const CYRILLIC_LOOKALIKE_MAP_ = { a:'а', b:'в', c:'с', e:'е', h:'н', k:'к', m:'м', o:'о', p:'р', t:'т', x:'х', y:'у' };
+function normalizeCatKey_(s){
+  return (s || '').toString()
+    .replace(/\u00A0/g, ' ')            // non-breaking space -> regular space
+    .replace(/[\u200B-\u200D\uFEFF]/g, '') // zero-width chars some sheets/dropdowns insert
+    .trim()
+    .replace(/\s+/g, ' ')
+    .toLowerCase()
+    // fix stray Latin letters that look identical to Cyrillic ones (a common
+    // invisible typo from autocomplete/keyboard switching) so "Cупы" (Latin C)
+    // still matches "Супы"
+    .replace(/[a-z]/g, ch => CYRILLIC_LOOKALIKE_MAP_[ch] || ch);
+}
+
+// Per-dish opt-in: does the chosen garnish/sauce/topping count toward the
+// combo discount FOR THIS SPECIFIC DISH? Controlled by an optional
+// "combo_garnish_names" column in Menu, a comma-separated list of option
+// names (e.g. "Пюре, Макароны") that only applies to this one dish's row —
+// choosing that same garnish text on a different, unrelated dish never
+// counts, even though the option text is shared.
+// Finds a standalone Menu item whose name matches the given text (used to
+// check stock for a garnish/sauce/topping that also exists as its own dish —
+// e.g. "Пюре" offered both as a side on its own and as a garnish elsewhere).
+function findMenuItemByName_(name){
+  if (!name) return null;
+  const norm = normalizeCatKey_(name);
+  return state.items.find(i => normalizeCatKey_(i.name) === norm) || null;
+}
+
+// True if this exact garnish/topping option is currently unavailable,
+// because it also exists as its own dish and that dish is out of stock or
+// marked unavailable. Options with no matching standalone dish are always
+// considered available (nothing to check against).
+function isDishGarnishComboEligible_(item, addonName){
+  if (!addonName || !item || !item.combo_garnish_names) return false;
+  const allowed = item.combo_garnish_names.toString().split(',')
+    .map(s => normalizeCatKey_(s))
+    .filter(s => s && s !== 'true' && s !== 'false'); // guard against a stray TRUE/FALSE pasted here by mistake
+  if (!allowed.length) return false;
+  return addonName.split(',').some(part => allowed.includes(normalizeCatKey_(part)));
+}
+
+// Optional per-dish override: is_available=FALSE always means sold out, no
+// matter what number is in stock (lets you 86 a dish instantly without
+// touching its quantity). Blank/TRUE/missing column = normal stock rules.
+function isItemMarkedUnavailable_(item){
+  return String(item.is_available).trim().toUpperCase() === 'FALSE';
+}
+
+// An addon option (garnish/sauce/topping) whose stock_link_id points to a
+// real standalone dish is only selectable while that dish itself is in
+// stock — same shared inventory, so it can't be oversold through the addon
+// path while the dish itself shows "нет в наличии".
+// An addon option (garnish/sauce/topping) is unavailable if it's out of
+// stock as its own dish. Two ways this is detected: an explicit
+// stock_link_id on the Addons row (unambiguous), or — with zero extra
+// setup — automatically matching the option's text against a standalone
+// Menu item of the same name (e.g. "Пюре" offered both as its own side and
+// as a garnish elsewhere shares the same inventory).
+function isAddonOptionOutOfStock_(option){
+  if (!option) return false;
+  if (option.stock_link_id) {
+    const linked = state.items.find(i => String(i.id) === String(option.stock_link_id));
+    if (linked) return (Number(linked.stock) || 0) <= 0 || isItemMarkedUnavailable_(linked);
+  }
+  const match = findMenuItemByName_(option.option_name);
+  if (!match) return false;
+  return (Number(match.stock) || 0) <= 0 || isItemMarkedUnavailable_(match);
+}
+
+function getItemCategory_(item){
+  // Defends against a recurring issue in this project: if the "category"
+  // header cell in the sheet has a stray leading/trailing space, the API
+  // returns the value under a key like "category " instead of "category",
+  // and a plain item.category lookup silently returns undefined. Scan all
+  // keys for one that trims down to exactly "category".
+  if (item.category !== undefined && item.category !== null && item.category !== '') return item.category;
+  for (const key in item) {
+    if (key.trim().toLowerCase() === 'category' && item[key]) return item[key];
+  }
+  return '';
+}
+
+function renderCatalog(){
+  const grid = document.getElementById('menuGrid');
+  const empty = document.getElementById('emptyState');
+
+  if (state.items.length === 0) {
+    empty.style.display = 'block';
+    empty.innerHTML = `
+      <div>Не удалось загрузить меню.</div>
+      <button type="button" class="secondary-btn" id="retryMenuBtn" style="max-width:220px;margin:14px auto 0;">${ICONS.list}Повторить</button>
+    `;
+    const retryBtn = document.getElementById('retryMenuBtn');
+    if (retryBtn) retryBtn.addEventListener('click', async () => {
+      retryBtn.disabled = true; retryBtn.textContent = 'Загрузка…';
+      const menuRes = await fetchMenuWithRetry_();
+      if (menuRes && menuRes.ok) {
+        state.items = menuRes.data.items;
+        state.addons = menuRes.data.addons;
+        state.restaurant = menuRes.data.restaurant;
+        if (menuRes.data.zones) state.zones = menuRes.data.zones;
+        if (menuRes.data.payment) state.payment = menuRes.data.payment;
+        state.pickupAddress = menuRes.data.pickupAddress || '';
+        renderTab();
+      } else {
+        showToast('Снова не получилось — проверьте соединение');
+        retryBtn.disabled = false;
+        retryBtn.innerHTML = `${ICONS.list}Повторить`;
+      }
+    });
+    return;
+  }
+  empty.style.display = 'none';
+  grid.style.display = 'block';
+
+  // Map each known category to its normalized form, so a sheet value that only
+  // differs by spacing/case/hidden characters still lands in the right section.
+  const knownByNorm = {};
+  CATEGORY_ORDER.forEach(c => { knownByNorm[normalizeCatKey_(c)] = c; });
+
+  const groups = {};
+  state.items.forEach(item => {
+    const raw = getItemCategory_(item).toString().trim();
+    const norm = normalizeCatKey_(raw);
+    const cat = raw ? (knownByNorm[norm] || raw) : 'Другое';
+    if (!groups[cat]) groups[cat] = [];
+    groups[cat].push(item);
+  });
+
+  const knownCats = CATEGORY_ORDER.filter(c => groups[c]);
+  const otherCats = Object.keys(groups)
+    .filter(c => !CATEGORY_ORDER.includes(c))
+    .sort((a, b) => a.localeCompare(b, 'ru'));
+  const orderedCats = [...knownCats, ...otherCats];
+
+  state.categoryAnchors = []; // [{ name, id, count }], used by the category picker sheet
+
+  orderedCats.forEach((cat, idx) => {
+    const sectionId = 'cat-section-' + idx;
+    state.categoryAnchors.push({ name: cat, id: sectionId, count: groups[cat].length });
+
+    const section = document.createElement('div');
+    section.className = 'category-section';
+    section.id = sectionId;
+    section.innerHTML = `<div class="category-heading"><span class="cat-title">${cat}</span><span class="cat-badge">${groups[cat].length}</span></div>`;
+    const subgrid = document.createElement('div');
+    subgrid.className = 'category-grid';
+    groups[cat].forEach((item, i) => subgrid.appendChild(renderCard(item, i)));
+    section.appendChild(subgrid);
+    grid.appendChild(section);
+  });
+
+  const navBtn = document.getElementById('categoryNavBtn');
+  if (orderedCats.length > 1) {
+    navBtn.style.display = 'flex';
+    navBtn.innerHTML = `${ICONS.list}Все категории (${orderedCats.length})`;
+  } else {
+    navBtn.style.display = 'none';
+  }
+}
+
+function openCategoryPicker(){
+  const overlay = document.getElementById('categoryOverlay');
+  const sheet = document.getElementById('categorySheet');
+  const anchors = state.categoryAnchors || [];
+
+  sheet.innerHTML = `
+    <div class="sheet-handle"></div>
+    <div class="font-display" style="font-size:19px;font-weight:700;margin-bottom:6px;">Категории</div>
+    <div id="categoryListRows"></div>
+  `;
+  const list = sheet.querySelector('#categoryListRows');
+  anchors.forEach(a => {
+    const row = document.createElement('button');
+    row.type = 'button';
+    row.className = 'category-list-row';
+    row.style.width = '100%';
+    row.innerHTML = `<span class="cat-name">${a.name}<span class="cat-count">${a.count}</span></span>${ICONS.chevronDown}`;
+    row.addEventListener('click', () => {
+      closeOverlay('categoryOverlay');
+      const target = document.getElementById(a.id);
+      if (target) target.scrollIntoView({ behavior: 'smooth', block: 'start' });
+    });
+    list.appendChild(row);
+  });
+
+  overlay.classList.add('open');
+}
+
+document.getElementById('categoryNavBtn').addEventListener('click', openCategoryPicker);
+
+function renderHistory(){
+  const grid = document.getElementById('menuGrid');
+  const empty = document.getElementById('emptyState');
+  grid.innerHTML = '';
+  if (state.history.length === 0) {
+    empty.style.display = 'block';
+    empty.textContent = 'У вас пока нет заказов.';
+    return;
+  }
+  empty.style.display = 'none';
+  grid.style.gridTemplateColumns = '1fr';
+  state.history.forEach(order => {
+    const items = JSON.parse(order.items_json || '[]');
+    const card = document.createElement('div');
+    card.className = 'card';
+    card.style.padding = '12px';
+    const date = new Date(order.timestamp).toLocaleDateString('ru-RU');
+    const canReorder = items.every(it => {
+      const menuItem = state.items.find(m => String(m.id) === String(it.id));
+      return menuItem && Number(menuItem.stock) >= it.qty;
+    });
+    card.innerHTML = `
+      <div style="display:flex;justify-content:space-between;align-items:center;">
+        <div style="font-weight:700;">${order.order_id}</div>
+        <div style="font-size:11px;color:var(--ink-soft);">${date}</div>
+      </div>
+      <div style="font-size:12.5px;color:#555;margin-top:6px;">
+        ${items.map(it => `${it.name} × ${it.qty}`).join(', ')}
+      </div>
+      <div style="font-family:'Fraunces',serif;font-weight:700;color:var(--leaf);margin-top:8px;">
+        ${Number(order.total).toLocaleString('ru-RU')} VND
+      </div>
+      <button class="add-btn" style="margin-top:8px;" ${canReorder ? '' : 'disabled'} data-reorder='${JSON.stringify(items).replace(/'/g,"&apos;")}'>
+        ${canReorder ? 'Повторить заказ' : 'Товара нет в наличии'}
+      </button>
+    `;
+    card.querySelector('button').addEventListener('click', (e) => {
+      if (e.target.disabled) return;
+      const items = JSON.parse(e.target.dataset.reorder);
+      items.forEach(it => addToCart(it.id, it.qty, it.addon, it.addon_extra));
+      showToast('Блюда добавлены в корзину');
+    });
+    grid.appendChild(card);
+  });
+}
+
+function renderCard(item, idx){
+  const el = document.createElement('div');
+  el.className = 'card';
+  el.style.animationDelay = (idx * 0.04) + 's';
+  const isFav = state.favorites.includes(String(item.id));
+  const stock = Number(item.stock) || 0;
+  const outOfStock = stock <= 0 || isItemMarkedUnavailable_(item);
+
+  el.innerHTML = `
+    <div class="img-wrap" data-open="${item.id}">
+      <img src="${item.image_url}" alt="${item.name}" loading="lazy">
+      <div class="stock-badge ${outOfStock ? 'out' : ''}">${outOfStock ? ICONS.boxOff : ICONS.box}${outOfStock ? 'нет в наличии' : 'в наличии: ' + stock}</div>
+      <div class="fav-btn" data-fav="${item.id}">
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="${isFav ? '#C0392B' : 'none'}" stroke="#C0392B" stroke-width="2">
+          <path d="M12 21s-7.5-4.6-10-9.2C.5 8.1 2.4 4 6.3 4c2.1 0 3.7 1.2 4.7 2.9C11.9 5.2 13.5 4 15.7 4c3.9 0 5.8 4.1 4.3 7.8C19.5 16.4 12 21 12 21z"/>
+        </svg>
+      </div>
+    </div>
+    <div class="body">
+      <div class="name" data-open="${item.id}">${item.name}</div>
+      <div class="desc" data-open="${item.id}">${item.description || ''}</div>
+      <div class="price">${Number(item.price).toLocaleString('ru-RU')} VND</div>
+      <div class="add-row">
+        <div class="qty-pill">
+          <button data-qty-minus>${ICONS.minus}</button>
+          <span data-qty-val>0</span>
+          <button data-qty-plus>${ICONS.plus}</button>
+        </div>
+        <button class="add-btn" data-add="${item.id}" ${outOfStock ? 'disabled' : ''}>${ICONS.cartAdd}В корзину</button>
+      </div>
+    </div>
+  `;
+
+  let qty = 0;
+  const qtyVal = el.querySelector('[data-qty-val]');
+  el.querySelector('[data-qty-minus]').addEventListener('click', () => {
+    qty = Math.max(0, qty - 1); qtyVal.textContent = qty;
+  });
+  el.querySelector('[data-qty-plus]').addEventListener('click', () => {
+    qty = Math.min(stock, qty + 1); qtyVal.textContent = qty;
+  });
+  el.querySelectorAll('[data-open]').forEach(n => n.addEventListener('click', () => openItemSheet(item)));
+  el.querySelector('[data-fav]').addEventListener('click', () => toggleFavorite(item.id));
+  const addBtn = el.querySelector('[data-add]');
+  addBtn.addEventListener('click', () => {
+    const addQty = Math.max(1, qty); // tapping "В корзину" always adds at least 1, even if the stepper was left at 0
+    addBtn.classList.remove('just-added'); void addBtn.offsetWidth; addBtn.classList.add('just-added');
+    if (item.addon_group && state.addons[item.addon_group]) {
+      openItemSheet(item, addQty);
+    } else {
+      addToCart(item.id, addQty);
+      showToast('Добавлено в корзину');
+    }
+    qty = 0; qtyVal.textContent = qty; // reset the stepper back to 0 after adding
+  });
+
+  return el;
+}
+
+/* =========================================================
+   FAVORITES
+========================================================= */
+function toggleFavorite(id){
+  id = String(id);
+  const idx = state.favorites.indexOf(id);
+  if (idx === -1) state.favorites.push(id); else state.favorites.splice(idx, 1);
+  csSet(CS_KEY_FAV, state.favorites);
+  renderTab();
+}
+
+/* =========================================================
+   ITEM DETAIL SHEET (with addon selection)
+========================================================= */
+function openItemSheet(item, presetQty=0){
+  const overlay = document.getElementById('itemOverlay');
+  const sheet = document.getElementById('itemSheet');
+  const addonGroup = item.addon_group ? state.addons[item.addon_group] : null;
+  const isMulti = !!(addonGroup && addonGroup.multi);
+  const addonOptions = addonGroup ? addonGroup.options : [];
+  const stock = Number(item.stock) || 0;
+  const outOfStock = stock <= 0 || isItemMarkedUnavailable_(item);
+  const allAddonsOutOfStock = addonOptions.length > 0 && addonOptions.every(a => isAddonOptionOutOfStock_(a));
+  const inputType = isMulti ? 'checkbox' : 'radio';
+
+  sheet.innerHTML = `
+    <div class="sheet-handle"></div>
+    <img src="${item.image_url}" style="width:100%;border-radius:14px;aspect-ratio:16/10;object-fit:cover;">
+    <div class="font-display" style="font-size:20px;font-weight:700;margin-top:12px;">${item.name}</div>
+    <div style="font-size:13px;color:#666;margin-top:4px;">${item.description || ''}</div>
+    <div class="price" style="margin-top:8px;">${Number(item.price).toLocaleString('ru-RU')} VND</div>
+    ${addonOptions.length ? `
+      <label class="field-label">${isMulti ? 'Выберите топинги' : 'Выберите гарнир / соус'}</label>
+      ${addonOptions.some(a => isDishGarnishComboEligible_(item, a.option_name)) ? `
+      <div style="display:flex;gap:6px;align-items:center;font-size:11.5px;color:var(--ink-soft);margin-bottom:8px;">
+        <span style="flex-shrink:0;width:13px;height:13px;color:var(--accent);">${ICONS.percentBadge}</span>
+        <span>Отмеченные варианты засчитываются в скидку «Собери комбо»</span>
+      </div>` : ''}
+      <div id="addonList" style="display:flex;flex-direction:column;gap:9px;">
+        ${addonOptions.map((a,i) => {
+          const outOfStock = isAddonOptionOutOfStock_(a);
+          const isDefault = !isMulti && i === addonOptions.findIndex(o => !isAddonOptionOutOfStock_(o));
+          return `
+          <label class="addon-option ${isDefault ? 'selected' : ''}" style="${outOfStock ? 'opacity:.45;pointer-events:none;' : ''}">
+            <input type="${inputType}" name="addon" value="${i}" ${isDefault ? 'checked' : ''} ${outOfStock ? 'disabled' : ''} style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
+            <span class="${isMulti ? 'addon-check-box' : 'addon-radio-dot'}">${isMulti ? ICONS.check : ''}</span>
+            <span class="addon-name">${a.option_name}${isDishGarnishComboEligible_(item, a.option_name) ? ` <span class="addon-combo-badge">${ICONS.percentBadge}−10%</span>` : ''}</span>
+            <span class="addon-price">${outOfStock ? 'нет в наличии' : (a.price_extra ? (a.price_extra > 0 ? '+' + a.price_extra.toLocaleString('ru-RU') : '−' + Math.abs(a.price_extra).toLocaleString('ru-RU')) + ' VND' : '')}</span>
+          </label>
+        `; }).join('')}
+      </div>
+    ` : ''}
+    <div class="add-row" style="margin-top:16px;">
+      <div class="qty-pill">
+        <button id="sheetQtyMinus">${ICONS.minus}</button>
+        <span id="sheetQtyVal">${presetQty}</span>
+        <button id="sheetQtyPlus">${ICONS.plus}</button>
+      </div>
+      <button class="add-btn" id="sheetAddBtn" style="flex:1;margin-left:12px;justify-content:center;" ${(outOfStock || allAddonsOutOfStock)?'disabled':''}>
+        ${(outOfStock || allAddonsOutOfStock) ? '' : ICONS.cartAdd}${outOfStock ? 'Нет в наличии' : (allAddonsOutOfStock ? 'Гарниры недоступны' : 'Добавить в корзину')}
+      </button>
+    </div>
+  `;
+
+  if (isMulti) {
+    sheet.querySelectorAll('.addon-option input[type=checkbox]').forEach(inp => {
+      inp.addEventListener('change', () => {
+        inp.closest('.addon-option').classList.toggle('selected', inp.checked);
+      });
+    });
+  } else {
+    sheet.querySelectorAll('.addon-option input[type=radio]').forEach(inp => {
+      inp.addEventListener('change', () => {
+        sheet.querySelectorAll('.addon-option').forEach(opt => opt.classList.remove('selected'));
+        inp.closest('.addon-option').classList.add('selected');
+      });
+    });
+  }
+
+  let qty = presetQty;
+  const qtyVal = sheet.querySelector('#sheetQtyVal');
+  sheet.querySelector('#sheetQtyMinus').addEventListener('click', () => { qty = Math.max(0, qty-1); qtyVal.textContent = qty; });
+  sheet.querySelector('#sheetQtyPlus').addEventListener('click', () => { qty = Math.min(stock, qty+1); qtyVal.textContent = qty; });
+  sheet.querySelector('#sheetAddBtn').addEventListener('click', () => {
+    const addQty = Math.max(1, qty); // always adds at least 1, even if the stepper was left at 0
+    let addon = null, addonExtra = 0;
+    if (isMulti) {
+      const chosen = Array.from(sheet.querySelectorAll('input[name="addon"]:checked'))
+        .map(c => addonOptions[Number(c.value)]);
+      if (chosen.length) {
+        addon = chosen.map(c => c.option_name).join(', ');
+        addonExtra = chosen.reduce((s, c) => s + (Number(c.price_extra) || 0), 0);
+      }
+    } else if (addonOptions.length) {
+      const checked = sheet.querySelector('input[name="addon"]:checked');
+      const chosen = addonOptions[Number(checked.value)];
+      addon = chosen.option_name; addonExtra = chosen.price_extra;
+    }
+    addToCart(item.id, addQty, addon, addonExtra);
+    closeOverlay('itemOverlay');
+    showToast('Добавлено в корзину');
+  });
+
+  overlay.classList.add('open');
+}
+
+/* =========================================================
+   CART
+========================================================= */
+function addToCart(id, qty, addon=null, addonExtra=0){
+  const item = state.items.find(i => String(i.id) === String(id));
+  if (!item) return;
+  const isCombo =
+    item.is_combo === true || item.is_combo === 'TRUE' ||
+    isDishGarnishComboEligible_(item, addon);
+  const existing = state.cart.find(c => String(c.id) === String(id) && c.addon === addon);
+  if (existing) { existing.qty += qty; }
+  else {
+    state.cart.push({
+      id: item.id, name: item.name, price: Number(item.price), image_url: item.image_url,
+      qty, addon, addon_extra: addonExtra || 0, is_combo: isCombo
+    });
+  }
+  csSet(CS_KEY_CART, state.cart);
+  updateCartBadge();
+}
+
+function updateCartBadge(){
+  const count = state.cart.reduce((s,c) => s + c.qty, 0);
+  const badge = document.getElementById('cartBadge');
+  const fab = document.getElementById('cartFab');
+  if (count > 0) { badge.style.display = 'flex'; badge.textContent = count; }
+  else { badge.style.display = 'none'; }
+  if (count > (updateCartBadge._last || 0)) {
+    fab.classList.remove('bump'); void fab.offsetWidth; fab.classList.add('bump');
+  }
+  updateCartBadge._last = count;
+}
+
+function pluralDish(n){
+  const n10 = n % 10, n100 = n % 100;
+  if (n10 === 1 && n100 !== 11) return 'блюдо';
+  if ([2,3,4].includes(n10) && ![12,13,14].includes(n100)) return 'блюда';
+  return 'блюд';
+}
+
+const COMBO_DISCOUNT_RATE = 0.10;
+const COMBO_MIN_ITEMS = 4; // discount only kicks in once at least this many combo-tagged dishes are in the cart
+
+function cartLineTotal(c){ return (c.price + (c.addon_extra||0)) * c.qty; }
+function cartOriginalSubtotal(){
+  return state.cart.reduce((s,c) => s + cartLineTotal(c), 0);
+}
+function cartComboEligibleSubtotal(){
+  return state.cart.filter(c => c.is_combo).reduce((s,c) => s + cartLineTotal(c), 0);
+}
+function cartComboItemCount(){
+  return state.cart.filter(c => c.is_combo).reduce((s,c) => s + c.qty, 0);
+}
+function cartComboThresholdMet(){
+  return cartComboItemCount() >= COMBO_MIN_ITEMS;
+}
+function cartComboDiscount(){
+  if (!cartComboThresholdMet()) return 0;
+  return Math.round(cartComboEligibleSubtotal() * COMBO_DISCOUNT_RATE);
+}
+// The discounted total — this is what gets charged for dishes (delivery is added on top, unaffected).
+function cartSubtotal(){
+  return cartOriginalSubtotal() - cartComboDiscount();
+}
+
+function renderCart(){
+  const sheet = document.getElementById('cartSheet');
+  if (state.cart.length === 0) {
+    sheet.innerHTML = `<div class="sheet-handle"></div><div class="empty-state">Корзина пуста</div>`;
+    return;
+  }
+  const discount = cartComboDiscount();
+  const comboCount = cartComboItemCount();
+  const comboProgress = comboCount > 0 && !cartComboThresholdMet();
+  sheet.innerHTML = `
+    <div class="sheet-handle"></div>
+    <div class="font-display" style="font-size:19px;font-weight:700;margin-bottom:14px;">Корзина</div>
+    <div id="cartItemsList" style="display:flex;flex-direction:column;gap:14px;"></div>
+    ${comboProgress ? `
+    <div class="combo-banner" style="margin:16px 0 0;">
+      ${ICONS.percentBadge}<span>Добавьте ещё <b>${COMBO_MIN_ITEMS - comboCount}</b> ${pluralDish(COMBO_MIN_ITEMS - comboCount)} из «Собери комбо», чтобы получить скидку 10%.</span>
+    </div>` : ''}
+    <div style="background:var(--surface);border-radius:14px;padding:14px 16px;margin-top:20px;">
+      <div style="display:flex;justify-content:space-between;font-size:13px;color:var(--ink-soft);">
+        <span>Позиций</span><span>${state.cart.reduce((s,c)=>s+c.qty,0)}</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px;font-size:13px;${discount ? 'color:var(--ink-soft);' : 'font-weight:700;font-size:15px;'}">
+        <span>Сумма блюд</span><span>${cartOriginalSubtotal().toLocaleString('ru-RU')} VND</span>
+      </div>
+      ${discount ? `
+      <div style="display:flex;justify-content:space-between;margin-top:4px;font-size:13px;color:var(--accent);font-weight:600;">
+        <span>${ICONS.percentBadge.replace('viewBox="0 0 24 24"','viewBox="0 0 24 24" style="width:13px;height:13px;vertical-align:-2px;margin-right:4px;"')}Скидка на комбо</span><span>−${discount.toLocaleString('ru-RU')} VND</span>
+      </div>
+      <div style="display:flex;justify-content:space-between;margin-top:6px;font-weight:700;font-size:15px;border-top:1px solid var(--line);padding-top:6px;">
+        <span>Итого за блюда</span><span>${cartSubtotal().toLocaleString('ru-RU')} VND</span>
+      </div>` : ''}
+    </div>
+    <button class="primary-btn" id="toCheckoutBtn">${ICONS.cartAdd}Оформить заказ</button>
+    <div style="height:6px;"></div>
+  `;
+  const list = sheet.querySelector('#cartItemsList');
+  state.cart.forEach((c, idx) => {
+    const row = document.createElement('div');
+    row.style.cssText = 'display:flex;align-items:center;gap:12px;';
+    row.innerHTML = `
+      <img src="${c.image_url}" style="width:56px;height:56px;border-radius:12px;object-fit:cover;flex-shrink:0;">
+      <div style="flex:1;min-width:0;">
+        <div style="font-size:13.5px;font-weight:600;">${c.name}${c.addon ? ' · ' + c.addon : ''}${c.is_combo ? (discount ? ' <span style="color:var(--accent);font-weight:700;font-size:11px;">· −10%</span>' : ' <span style="color:var(--ink-soft);font-weight:600;font-size:11px;">· комбо</span>') : ''}</div>
+        <div style="font-size:12px;color:var(--ink-soft);margin-top:2px;">${((c.price + (c.addon_extra||0))).toLocaleString('ru-RU')} VND</div>
+      </div>
+      <div class="qty-pill">
+        <button data-dec="${idx}">${ICONS.minus}</button>
+        <span>${c.qty}</span>
+        <button data-inc="${idx}">${ICONS.plus}</button>
+      </div>
+    `;
+    list.appendChild(row);
+  });
+  list.querySelectorAll('[data-dec]').forEach(b => b.addEventListener('click', () => {
+    const i = Number(b.dataset.dec);
+    state.cart[i].qty -= 1;
+    if (state.cart[i].qty <= 0) state.cart.splice(i,1);
+    csSet(CS_KEY_CART, state.cart); updateCartBadge(); renderCart();
+  }));
+  list.querySelectorAll('[data-inc]').forEach(b => b.addEventListener('click', () => {
+    const i = Number(b.dataset.inc);
+    state.cart[i].qty += 1;
+    csSet(CS_KEY_CART, state.cart); updateCartBadge(); renderCart();
+  }));
+  sheet.querySelector('#toCheckoutBtn').addEventListener('click', () => {
+    try {
+      closeOverlay('cartOverlay');
+      openCheckout();
+    } catch(e) {
+      console.error('Ошибка при открытии оформления заказа:', e);
+      showToast('Ошибка: ' + e.message);
+    }
+  });
+}
+
+/* Draggable floating cart button */
+(function setupDrag(){
+  const fab = document.getElementById('cartFab');
+  let startX, startY, origX, origY, dragging = false, moved = false;
+  fab.style.right = '18px';
+  fab.style.bottom = '90px';
+
+  function pointerDown(e){
+    dragging = true; moved = false;
+    const rect = fab.getBoundingClientRect();
+    origX = rect.left; origY = rect.top;
+    const p = e.touches ? e.touches[0] : e;
+    startX = p.clientX; startY = p.clientY;
+    fab.style.left = origX + 'px'; fab.style.top = origY + 'px';
+    fab.style.right = 'auto'; fab.style.bottom = 'auto';
+  }
+  function pointerMove(e){
+    if (!dragging) return;
+    const p = e.touches ? e.touches[0] : e;
+    const dx = p.clientX - startX, dy = p.clientY - startY;
+    if (Math.abs(dx) > 4 || Math.abs(dy) > 4) moved = true;
+    let newX = origX + dx, newY = origY + dy;
+    newX = Math.max(6, Math.min(window.innerWidth - 64, newX));
+    newY = Math.max(6, Math.min(window.innerHeight - 64, newY));
+    fab.style.left = newX + 'px'; fab.style.top = newY + 'px';
+  }
+  function pointerUp(){
+    if (!dragging) return; // only act if a drag actually started on the fab itself
+    dragging = false;
+    if (!moved) { renderCart(); document.getElementById('cartOverlay').classList.add('open'); }
+  }
+  fab.addEventListener('mousedown', pointerDown);
+  window.addEventListener('mousemove', pointerMove);
+  window.addEventListener('mouseup', pointerUp);
+  fab.addEventListener('touchstart', pointerDown, {passive:true});
+  window.addEventListener('touchmove', pointerMove, {passive:true});
+  window.addEventListener('touchend', pointerUp);
+})();
+
+/* =========================================================
+   OVERLAYS
+========================================================= */
+function closeOverlay(id){ document.getElementById(id).classList.remove('open'); }
+document.querySelectorAll('.sheet-overlay').forEach(ov => {
+  ov.addEventListener('click', (e) => { if (e.target === ov) ov.classList.remove('open'); });
+});
+
+/* =========================================================
+   CHECKOUT
+========================================================= */
+// Real phone validation: counts actual digits (ignoring spaces/dashes/+),
+// requires a plausible length, and rejects obvious junk like "00000000" or
+// "11111111" that the old loose regex let through.
+function isValidPhone_(raw){
+  const digits = (raw || '').replace(/[^0-9]/g, '');
+  if (digits.length < 8 || digits.length > 12) return false;
+  if (/^(\d)\1+$/.test(digits)) return false; // all the same digit
+  return true;
+}
+
+function haversine(lat1, lng1, lat2, lng2){
+  const R = 6371;
+  const dLat = (lat2-lat1) * Math.PI/180;
+  const dLng = (lng2-lng1) * Math.PI/180;
+  const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
+  return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+}
+
+function openCheckout(){
+  const overlay = document.getElementById('checkoutOverlay');
+  const sheet = document.getElementById('checkoutSheet');
+  const originalSubtotal = cartOriginalSubtotal();
+  const comboDiscount = cartComboDiscount();
+  const subtotal = cartSubtotal();
+  const comboCount = cartComboItemCount();
+  const comboProgress = comboCount > 0 && !cartComboThresholdMet();
+
+  sheet.innerHTML = `
+    <div class="sheet-handle"></div>
+    <div class="font-display" style="font-size:19px;font-weight:700;">Оформление заказа</div>
+
+    <label class="field-label">Telegram</label>
+    <input id="fUsername" value="${tgUser ? (tgUser.username ? '@' + tgUser.username : [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') + ' (нет username)') : 'не определён'}" readonly style="background:var(--surface-dim);color:var(--ink-soft);">
+
+    <label class="field-label">Номер телефона</label>
+    <input id="fPhone" type="tel" placeholder="+84 ..." value="${state.savedContact && state.savedContact.phone ? state.savedContact.phone : ''}">
+
+    <label class="field-label">Способ получения</label>
+    <div style="display:flex;flex-direction:column;gap:9px;">
+      <label class="addon-option selected" data-fulfillment="delivery">
+        <input type="radio" name="fulfillment" value="delivery" checked style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
+        <span class="addon-radio-dot"></span>
+        <span class="addon-name">Доставка</span>
+        <span></span>
+      </label>
+      <label class="addon-option" data-fulfillment="pickup">
+        <input type="radio" name="fulfillment" value="pickup" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
+        <span class="addon-radio-dot"></span>
+        <span class="addon-name">Самовывоз</span>
+        <span style="color:var(--accent);font-weight:600;">бесплатно</span>
+      </label>
+    </div>
+
+    <div id="pickupInfoWrap" style="display:none;margin-top:10px;">
+      <div style="display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--ink-soft);background:var(--surface);border-radius:10px;padding:10px 11px;">
+        <span style="flex-shrink:0;width:15px;height:15px;color:var(--accent);margin-top:1px;">${ICONS.pin}</span>
+        <span>${state.pickupAddress ? `Забрать заказ можно по адресу: <b style="color:var(--ink);">${state.pickupAddress}</b>. Часы работы — в шапке приложения.` : 'Адрес самовывоза уточнит администратор после подтверждения заказа.'}</span>
+      </div>
+    </div>
+
+    <div id="deliveryFieldsWrap">
+      <label class="field-label">Адрес доставки</label>
+      <textarea id="fAddress" rows="2" placeholder="Улица, дом, ориентир">${state.savedContact && state.savedContact.address ? state.savedContact.address : ''}</textarea>
+
+      <label class="field-label">Район доставки</label>
+      <div id="zoneList" style="display:flex;flex-direction:column;gap:9px;"></div>
+
+      <label class="field-label">Геопозиция (по желанию)</label>
+      <div style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--ink-soft);background:var(--surface);border-radius:10px;padding:9px 10px;margin-bottom:8px;">
+        <span style="flex-shrink:0;width:15px;height:15px;color:var(--accent);margin-top:1px;">${ICONS.pin}</span>
+        <span>Цена определяется районом выше — геопозиция не обязательна и на неё не влияет, но поможет курьеру быстрее найти вас.</span>
+      </div>
+      ${state.savedContact && state.savedContact.point ? `
+      <button type="button" class="secondary-btn" id="useSavedPointBtn">${ICONS.check}Использовать прошлую точку</button>
+      ` : ''}
+      <button type="button" class="secondary-btn" id="geoBtn">${ICONS.pin}Отправить геопозицию</button>
+      <div id="geoStatus" style="font-size:12px;color:var(--ink-soft);margin-top:6px;"></div>
+
+      <button type="button" class="link-toggle ${state.savedContact && state.savedContact.manualLink ? 'open' : ''}" id="manualToggle">${ICONS.chevronDown}Вставить ссылку на карту вместо этого</button>
+      <div class="manual-geo-panel ${state.savedContact && state.savedContact.manualLink ? 'open' : ''}" id="manualGeoPanel">
+        <label class="field-label" style="margin-top:0;">Ссылка на вашу точку на карте</label>
+        <input id="fManualGeo" placeholder="Ссылка из Google Maps / другого приложения карт" value="${state.savedContact && state.savedContact.manualLink ? state.savedContact.manualLink : ''}">
+        <button type="button" class="secondary-btn" id="manualGeoConfirm" style="margin-top:8px;">${ICONS.check}Подтвердить</button>
+        <div id="manualGeoStatus" style="font-size:12px;color:var(--ink-soft);margin-top:6px;"></div>
+        <div class="manual-geo-hint">Пригодится курьеру для точности — на цену доставки не влияет.</div>
+      </div>
+    </div>
+
+    <label class="field-label">Способ оплаты</label>
+    <div id="paymentSection">
+      <div style="font-size:12px;color:var(--ink-soft);">Выберите район доставки выше</div>
+    </div>
+
+    <label class="field-label">Комментарий к заказу</label>
+    <textarea id="fComment" rows="2" placeholder="Например: без острого, позвонить заранее"></textarea>
+
+    <div style="margin-top:16px;padding:12px;background:#fff;border-radius:12px;border:1px solid var(--line);">
+      ${comboProgress ? `<div class="combo-banner" style="margin:0 0 12px;">${ICONS.percentBadge}<span>Добавьте ещё <b>${COMBO_MIN_ITEMS - comboCount}</b> ${pluralDish(COMBO_MIN_ITEMS - comboCount)} из «Собери комбо» для скидки 10%.</span></div>` : ''}
+      <div style="display:flex;justify-content:space-between;font-size:13px;"><span>Сумма блюд</span><span>${originalSubtotal.toLocaleString('ru-RU')} VND</span></div>
+      ${comboDiscount ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px;color:var(--accent);font-weight:600;"><span>Скидка на комбо</span><span>−${comboDiscount.toLocaleString('ru-RU')} VND</span></div>` : ''}
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px;"><span>Доставка</span><span id="feeLine">—</span></div>
+      <div style="display:flex;justify-content:space-between;font-weight:700;margin-top:8px;border-top:1px solid var(--line);padding-top:8px;"><span>Итого</span><span id="totalLine">${subtotal.toLocaleString('ru-RU')} VND</span></div>
+    </div>
+
+    <button class="primary-btn" id="submitOrderBtn" disabled>Выберите район доставки</button>
+  `;
+
+  let deliveryFee = null;
+  let point = null;
+  let manualLink = null;
+  let selectedZone = null; // { name, fee } or { name: null, fee: <max tier>, isFallback: true }
+  let paymentMethod = 'cash';
+  let fulfillment = 'delivery'; // 'delivery' | 'pickup'
+
+  sheet.querySelectorAll('input[name="fulfillment"]').forEach(inp => {
+    inp.addEventListener('change', () => {
+      fulfillment = inp.value;
+      sheet.querySelectorAll('[data-fulfillment]').forEach(opt => opt.classList.toggle('selected', opt.dataset.fulfillment === fulfillment));
+      const isPickup = fulfillment === 'pickup';
+      sheet.querySelector('#deliveryFieldsWrap').style.display = isPickup ? 'none' : '';
+      sheet.querySelector('#pickupInfoWrap').style.display = isPickup ? 'block' : 'none';
+      if (isPickup) {
+        deliveryFee = 0;
+        sheet.querySelector('#feeLine').textContent = 'бесплатно';
+      } else {
+        deliveryFee = selectedZone ? selectedZone.fee : null;
+        sheet.querySelector('#feeLine').textContent = deliveryFee !== null ? deliveryFee.toLocaleString('ru-RU') + ' VND' : '—';
+      }
+      updatePaymentSection();
+      recompute();
+    });
+  });
+
+  function renderZoneList(){
+    const el = sheet.querySelector('#zoneList');
+    const zones = state.zones || [];
+    const maxFee = DELIVERY_TIERS[DELIVERY_TIERS.length - 1].fee;
+    const rows = zones.map(z => ({ name: z.name, fee: z.fee, isFallback: false }));
+    rows.push({ name: 'Другой район', fee: maxFee, isFallback: true });
+    el.innerHTML = rows.map((z, i) => `
+      <label class="addon-option" data-zone-idx="${i}">
+        <input type="radio" name="zone" value="${i}" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
+        <span class="addon-radio-dot"></span>
+        <span class="addon-name">${z.name}${z.isFallback ? ' <span style="color:var(--ink-soft);font-weight:400;">(уточнит администратор)</span>' : ''}</span>
+        <span class="addon-price">${z.fee.toLocaleString('ru-RU')} VND</span>
+      </label>
+    `).join('');
+    el.querySelectorAll('input[name="zone"]').forEach((inp, i) => {
+      inp.addEventListener('change', () => selectZone(rows[i], el));
+    });
+    return rows;
+  }
+  const zoneRows = renderZoneList();
+
+  function selectZone(zone, el){
+    el = el || sheet.querySelector('#zoneList');
+    selectedZone = zone;
+    deliveryFee = zone.fee;
+    el.querySelectorAll('.addon-option').forEach(opt => opt.classList.remove('selected'));
+    const idx = zoneRows.indexOf(zone);
+    const optEl = el.querySelector(`[data-zone-idx="${idx}"]`);
+    if (optEl) { optEl.classList.add('selected'); optEl.querySelector('input').checked = true; }
+    sheet.querySelector('#feeLine').textContent = deliveryFee.toLocaleString('ru-RU') + ' VND';
+    updatePaymentSection();
+    recompute();
+  }
+
+  function recompute(){
+    const total = subtotal + (deliveryFee || 0);
+    sheet.querySelector('#totalLine').textContent = total.toLocaleString('ru-RU') + ' VND';
+    const btn = sheet.querySelector('#submitOrderBtn');
+    const addr = sheet.querySelector('#fAddress').value.trim();
+    const phone = sheet.querySelector('#fPhone').value.trim();
+    const phoneOk = isValidPhone_(phone);
+
+    if (fulfillment === 'pickup') {
+      if (phoneOk) { btn.disabled = false; btn.textContent = 'Заказать'; }
+      else { btn.disabled = true; btn.textContent = 'Укажите корректный телефон'; }
+      return;
+    }
+
+    if (selectedZone && addr && phoneOk) {
+      btn.disabled = false; btn.textContent = 'Заказать';
+    } else {
+      btn.disabled = true;
+      btn.textContent = !phoneOk ? 'Укажите корректный телефон' : (!selectedZone ? 'Выберите район доставки' : 'Укажите адрес');
+    }
+  }
+
+  sheet.querySelector('#fAddress').addEventListener('input', recompute);
+  sheet.querySelector('#fPhone').addEventListener('input', recompute);
+
+  function statusHtml(icon, color, text){
+    return `<span style="display:flex;gap:6px;align-items:flex-start;"><span style="flex-shrink:0;width:13px;height:13px;color:${color};margin-top:1px;">${icon}</span><span>${text}</span></span>`;
+  }
+  function updatePaymentSection(){
+    const el = sheet.querySelector('#paymentSection');
+    if (!el) return;
+    const forcedReason = !state.payment.cashEnabled
+      ? 'сейчас принимаются только безналичные заказы'
+      : (fulfillment === 'delivery' && selectedZone && selectedZone.isFallback ? 'ваш район требует уточнения у администратора' : null);
+
+    if (forcedReason) {
+      paymentMethod = 'transfer';
+      el.innerHTML = `
+        <div style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--ink-soft);background:var(--surface);border-radius:10px;padding:9px 10px;">
+          <span style="flex-shrink:0;width:15px;height:15px;color:var(--accent);margin-top:1px;">${ICONS.warning}</span>
+          <span>Доступна только оплата по VietQR — ${forcedReason}. После подтверждения заказа администратор пришлёт точную сумму и QR-код.</span>
+        </div>
+      `;
+      return;
+    }
+
+    el.innerHTML = `
+      <div style="display:flex;flex-direction:column;gap:8px;">
+        <label class="addon-option ${paymentMethod==='cash'?'selected':''}" data-pay="cash">
+          <input type="radio" name="paymentMethod" value="cash" ${paymentMethod==='cash'?'checked':''} style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
+          <span class="addon-radio-dot"></span>
+          <span class="addon-name">Наличными при получении</span>
+          <span></span>
+        </label>
+        <label class="addon-option ${paymentMethod==='transfer'?'selected':''}" data-pay="transfer">
+          <input type="radio" name="paymentMethod" value="transfer" ${paymentMethod==='transfer'?'checked':''} style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
+          <span class="addon-radio-dot"></span>
+          <span class="addon-name">Перевод по VietQR</span>
+          <span></span>
+        </label>
+      </div>
+      <div id="transferNote" style="${paymentMethod==='transfer' ? '' : 'display:none;'}font-size:12px;color:var(--ink-soft);margin-top:8px;">
+        После подтверждения заказа администратор пришлёт точную сумму и QR-код VietQR для оплаты.
+      </div>
+    `;
+    el.querySelectorAll('input[name="paymentMethod"]').forEach(inp => {
+      inp.addEventListener('change', () => {
+        paymentMethod = inp.value;
+        el.querySelectorAll('.addon-option').forEach(opt => opt.classList.toggle('selected', opt.dataset.pay === paymentMethod));
+        const noteEl = el.querySelector('#transferNote');
+        if (noteEl) noteEl.style.display = paymentMethod === 'transfer' ? '' : 'none';
+      });
+    });
+  }
+
+  function applyPoint(lat, lng, sourceLabel){
+    manualLink = null; // geolocation succeeded — a manual link (if any) is no longer needed
+    point = { lat, lng };
+    state.deliveryPoint = point;
+    const km = (state.restaurant.lat && state.restaurant.lng)
+      ? haversine(state.restaurant.lat, state.restaurant.lng, lat, lng)
+      : 0;
+    const matched = (state.zones || []).find(z => haversine(z.lat, z.lng, lat, lng) <= z.radius_km);
+    let suggestNote = '';
+    if (matched && !selectedZone) {
+      const idx = zoneRows.findIndex(r => r.name === matched.name && !r.isFallback);
+      if (idx !== -1) { selectZone(zoneRows[idx]); suggestNote = ` · похоже на район «${matched.name}», выбрали его — можно поменять выше`; }
+    }
+    const msg = `Геопозиция получена (~${km.toFixed(1)} км от кухни)${suggestNote}. Ссылка: maps.google.com/?q=${lat.toFixed(5)},${lng.toFixed(5)}`;
+    sheet.querySelector('#geoStatus').innerHTML = statusHtml(ICONS.pin, 'var(--accent)', msg);
+    recompute();
+  }
+
+  const useSavedPointBtn = sheet.querySelector('#useSavedPointBtn');
+  if (useSavedPointBtn) {
+    useSavedPointBtn.addEventListener('click', () => {
+      const p = state.savedContact.point;
+      applyPoint(p.lat, p.lng, 'Использован прошлый подтверждённый адрес');
+    });
+  }
+
+  sheet.querySelector('#manualToggle').addEventListener('click', () => {
+    const panel = sheet.querySelector('#manualGeoPanel');
+    const btn = sheet.querySelector('#manualToggle');
+    const willOpen = !panel.classList.contains('open');
+    panel.classList.toggle('open', willOpen);
+    btn.classList.toggle('open', willOpen);
+  });
+
+  sheet.querySelector('#manualGeoConfirm').addEventListener('click', () => {
+    const raw = sheet.querySelector('#fManualGeo').value.trim();
+    const manualStatus = sheet.querySelector('#manualGeoStatus');
+    if (!raw) {
+      manualStatus.innerHTML = statusHtml(ICONS.errorCircle, '#C0392B', 'Вставьте ссылку.');
+      return;
+    }
+    // No parsing — the link is taken as-is and shown to the courier for
+    // reference only. Price comes from the district picked above, not from
+    // this link.
+    manualLink = raw;
+    point = null;
+    sheet.querySelector('#geoStatus').innerHTML = '';
+    manualStatus.innerHTML = statusHtml(ICONS.check, 'var(--accent)', 'Ссылка сохранена для курьера.');
+    recompute();
+  });
+
+  sheet.querySelector('#geoBtn').addEventListener('click', () => {
+    const status = sheet.querySelector('#geoStatus');
+
+    const locationManagerOk = (() => {
+      try { return !!(tg && tg.LocationManager && tg.isVersionAtLeast && tg.isVersionAtLeast('8.0')); }
+      catch(e){ return false; }
+    })();
+
+    if (locationManagerOk) {
+      try {
+        tg.LocationManager.init(() => {
+          tg.LocationManager.getLocation((loc) => {
+            if (loc) {
+              applyPoint(loc.latitude, loc.longitude);
+            } else {
+              status.innerHTML = statusHtml(ICONS.errorCircle, '#C0392B',
+                'Доступ к геопозиции не разрешён. Разрешите доступ в настройках Telegram, либо воспользуйтесь ручным вводом ниже.');
+            }
+          });
+        });
+      } catch(e) {
+        if (navigator.geolocation) {
+          navigator.geolocation.getCurrentPosition(
+            pos => applyPoint(pos.coords.latitude, pos.coords.longitude),
+            () => { status.innerHTML = statusHtml(ICONS.errorCircle, '#C0392B', 'Доступ к геолокации запрещён в браузере. Разрешите его в настройках сайта, либо воспользуйтесь ручным вводом ниже.'); }
+          );
+        } else {
+          status.textContent = 'Геолокация недоступна на этом устройстве. Воспользуйтесь ручным вводом ниже.';
+        }
+      }
+    } else if (navigator.geolocation) {
+      navigator.geolocation.getCurrentPosition(
+        pos => applyPoint(pos.coords.latitude, pos.coords.longitude),
+        () => { status.innerHTML = statusHtml(ICONS.errorCircle, '#C0392B', 'Доступ к геолокации запрещён. Разрешите его в настройках браузера/Telegram, либо воспользуйтесь ручным вводом ниже.'); }
+      );
+    } else {
+      status.textContent = 'Геолокация недоступна на этом устройстве. Воспользуйтесь ручным вводом ниже.';
+    }
+  });
+
+  sheet.querySelector('#submitOrderBtn').addEventListener('click', async (e) => {
+    const btn = e.target;
+    btn.disabled = true;
+    btn.textContent = 'Отправка...';
+
+    // Final stock re-check right before sending the order — covers both the
+    // dishes themselves and any garnish/sauce/topping that's linked (via
+    // stock_link_id) to a standalone dish, so a garnish that sold out in the
+    // last few minutes can't slip through either.
+    const linkedChecks = []; // { id, qty, label }
+    state.cart.forEach(c => {
+      if (!c.addon) return;
+      const parentItem = state.items.find(i => String(i.id) === String(c.id));
+      const group = parentItem && parentItem.addon_group ? state.addons[parentItem.addon_group] : null;
+      if (!group) return;
+      c.addon.split(',').forEach(part => {
+        const name = part.trim();
+        const opt = group.options.find(o => o.option_name === name);
+        if (!opt) return;
+        if (opt.stock_link_id) {
+          linkedChecks.push({ id: opt.stock_link_id, qty: c.qty, label: `${c.name} (${name})` });
+        } else {
+          const matched = findMenuItemByName_(opt.option_name);
+          if (matched) linkedChecks.push({ id: matched.id, qty: c.qty, label: `${c.name} (${name})` });
+        }
+      });
+    });
+
+    const idSet = new Set(state.cart.map(c => c.id));
+    linkedChecks.forEach(l => idSet.add(l.id));
+    const ids = Array.from(idSet).join(',');
+    try {
+      const stockRes = await apiGet('checkStock', { ids });
+      if (stockRes.ok) {
+        const shortages = state.cart.filter(c => (stockRes.data[c.id] ?? 0) < c.qty);
+        const linkedShortages = linkedChecks.filter(l => (stockRes.data[l.id] ?? 0) < l.qty);
+        if (shortages.length || linkedShortages.length) {
+          const names = [...shortages.map(s => s.name), ...linkedShortages.map(l => l.label)];
+          alert('К сожалению, часть блюд/гарниров уже раскупили: ' + names.join(', ') + '. Обновите корзину.');
+          btn.disabled = false; btn.textContent = 'Заказать';
+          return;
+        }
+      }
+    } catch(err){ console.error(err); }
+
+    const addressRaw = fulfillment === 'pickup' ? '' : sheet.querySelector('#fAddress').value.trim();
+    const addressFinal = fulfillment === 'pickup'
+      ? `Самовывоз${state.pickupAddress ? ' — ' + state.pickupAddress : ''}`
+      : (manualLink ? `${addressRaw}\nСсылка на локацию (для курьера): ${manualLink}` : addressRaw);
+    const commentFinal = sheet.querySelector('#fComment').value.trim();
+
+    const paymentForcedReason = !state.payment.cashEnabled
+      ? 'отключена оплата наличными'
+      : (fulfillment === 'delivery' && selectedZone && selectedZone.isFallback ? 'район требует уточнения у администратора' : null);
+
+    const payload = {
+      telegram_user_id: tgUser ? tgUser.id : '',
+      telegram_username: tgUser ? tgUser.username : '',
+      telegram_display_name: tgUser ? [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') : '',
+      phone: sheet.querySelector('#fPhone').value.trim(),
+      address: addressFinal,
+      lat: fulfillment === 'pickup' ? '' : (point ? point.lat : ''),
+      lng: fulfillment === 'pickup' ? '' : (point ? point.lng : ''),
+      items: state.cart,
+      subtotal, delivery_fee: deliveryFee || 0, total: subtotal + (deliveryFee || 0),
+      delivery_zone: fulfillment === 'pickup' ? '' : (selectedZone ? (selectedZone.isFallback ? 'Другой район (уточнить)' : selectedZone.name) : ''),
+      fulfillment_type: fulfillment,
+      original_subtotal: originalSubtotal,
+      combo_discount: comboDiscount || 0,
+      payment_method: paymentMethod,
+      payment_forced: paymentForcedReason,
+      comment: commentFinal
+    };
+
+    try {
+      const res = await apiPost('createOrder', payload);
+      if (res.ok) {
+        state.cart = [];
+        csSet(CS_KEY_CART, state.cart);
+        updateCartBadge();
+        state.savedContact = {
+          phone: payload.phone, address: addressRaw, manualLink: manualLink || '',
+          point: point ? { lat: point.lat, lng: point.lng } : null
+        };
+        csSet(CS_KEY_CONTACT, state.savedContact);
+        closeOverlay('checkoutOverlay');
+        const fulfillmentNote = fulfillment === 'pickup' ? 'Заказ будет готов к самовывозу в течение часа.' : 'Доставка будет в течение часа.';
+        if (tg) tg.showAlert('Ваш заказ принят. ' + fulfillmentNote + ' По дополнительным вопросам вы можете обратиться к администратору @svoyakuhnyaVN');
+        else alert('Ваш заказ принят. ' + fulfillmentNote + ' По дополнительным вопросам вы можете обратиться к администратору @svoyakuhnyaVN');
+      } else if (res.error === 'insufficient_stock') {
+        alert('Не хватает на складе: ' + res.details.map(d => d.name).join(', '));
+        btn.disabled = false; btn.textContent = 'Заказать';
+      } else {
+        alert('Ошибка отправки заказа. Попробуйте ещё раз.');
+        btn.disabled = false; btn.textContent = 'Заказать';
+      }
+    } catch(err){
+      console.error(err);
+      alert('Ошибка сети. Проверьте соединение и попробуйте снова.');
+      btn.disabled = false; btn.textContent = 'Заказать';
+    }
+  });
+
+  overlay.classList.add('open');
+}
+
+document.getElementById('cartFab').addEventListener('dblclick', () => {}); // no-op, drag handles open
+
+/* =========================================================
+   TOAST
+========================================================= */
+function showToast(msg){
+  const t = document.getElementById('toast');
+  t.textContent = msg;
+  t.classList.add('show');
+  setTimeout(() => t.classList.remove('show'), 1600);
+}
+
+init();
+</script>
+</body>
+</html>
