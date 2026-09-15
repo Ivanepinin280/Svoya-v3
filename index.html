@@ -500,13 +500,15 @@ let state = {
   items: [],
   addons: {},
   restaurant: { lat: null, lng: null },
+  zones: [], // [{ name, lat, lng, radius_km, fee }] — fixed-price delivery areas that override the distance tiers
   payment: { cashEnabled: true },
   favorites: [],
   cart: [],       // { id, name, price, qty, addon, addon_extra }
   history: [],
   activeTab: 'catalog',
   deliveryPoint: null, // { lat, lng }
-  savedContact: null // { phone, address }
+  savedContact: null, // { phone, address }
+  pickupAddress: ''
 };
 
 const CS_KEY_FAV = 'sk_favorites';
@@ -630,7 +632,9 @@ async function init(){
       state.items = menuRes.data.items;
       state.addons = menuRes.data.addons;
       state.restaurant = menuRes.data.restaurant;
+      if (menuRes.data.zones) state.zones = menuRes.data.zones;
       if (menuRes.data.payment) state.payment = menuRes.data.payment;
+      state.pickupAddress = menuRes.data.pickupAddress || '';
       document.getElementById('hoursLine').textContent =
         `${menuRes.data.hours.weekday} · ${menuRes.data.hours.weekend}`;
     } else {
@@ -818,7 +822,9 @@ function renderCatalog(){
         state.items = menuRes.data.items;
         state.addons = menuRes.data.addons;
         state.restaurant = menuRes.data.restaurant;
+        if (menuRes.data.zones) state.zones = menuRes.data.zones;
         if (menuRes.data.payment) state.payment = menuRes.data.payment;
+        state.pickupAddress = menuRes.data.pickupAddress || '';
         renderTab();
       } else {
         showToast('Снова не получилось — проверьте соединение');
@@ -1325,10 +1331,6 @@ function haversine(lat1, lng1, lat2, lng2){
   const a = Math.sin(dLat/2)**2 + Math.cos(lat1*Math.PI/180)*Math.cos(lat2*Math.PI/180)*Math.sin(dLng/2)**2;
   return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
 }
-function deliveryFeeForDistance(km){
-  const tier = DELIVERY_TIERS.find(t => km <= t.upTo);
-  return tier ? tier.fee : DELIVERY_TIERS[DELIVERY_TIERS.length-1].fee;
-}
 
 function openCheckout(){
   const overlay = document.getElementById('checkoutOverlay');
@@ -1349,29 +1351,60 @@ function openCheckout(){
     <label class="field-label">Номер телефона</label>
     <input id="fPhone" type="tel" placeholder="+84 ..." value="${state.savedContact && state.savedContact.phone ? state.savedContact.phone : ''}">
 
-    <label class="field-label">Адрес доставки</label>
-    <textarea id="fAddress" rows="2" placeholder="Улица, дом, ориентир">${state.savedContact && state.savedContact.address ? state.savedContact.address : ''}</textarea>
-
-    <label class="field-label">Геопозиция</label>
-    <div style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--ink-soft);background:var(--surface);border-radius:10px;padding:9px 10px;margin-bottom:8px;">
-      <span style="flex-shrink:0;width:15px;height:15px;color:var(--accent);margin-top:1px;">${ICONS.pin}</span>
-      <span>Точная геопозиция помогает быстрее рассчитать доставку. Не хотите делиться ей через Telegram — не проблема, ниже можно указать адрес вручную.</span>
+    <label class="field-label">Способ получения</label>
+    <div style="display:flex;flex-direction:column;gap:9px;">
+      <label class="addon-option selected" data-fulfillment="delivery">
+        <input type="radio" name="fulfillment" value="delivery" checked style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
+        <span class="addon-radio-dot"></span>
+        <span class="addon-name">Доставка</span>
+        <span></span>
+      </label>
+      <label class="addon-option" data-fulfillment="pickup">
+        <input type="radio" name="fulfillment" value="pickup" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
+        <span class="addon-radio-dot"></span>
+        <span class="addon-name">Самовывоз</span>
+        <span style="color:var(--accent);font-weight:600;">бесплатно</span>
+      </label>
     </div>
-    <button type="button" class="secondary-btn" id="geoBtn">${ICONS.pin}Отправить геопозицию (по желанию)</button>
-    <div id="geoStatus" style="font-size:12px;color:var(--ink-soft);margin-top:6px;"></div>
 
-    <button type="button" class="link-toggle ${state.savedContact && state.savedContact.manualLink ? 'open' : ''}" id="manualToggle">${ICONS.chevronDown}Указать адрес вручную по ссылке на карту</button>
-    <div class="manual-geo-panel ${state.savedContact && state.savedContact.manualLink ? 'open' : ''}" id="manualGeoPanel">
-      <label class="field-label" style="margin-top:0;">Ссылка на вашу точку на карте</label>
-      <input id="fManualGeo" placeholder="Ссылка из Google Maps / другого приложения карт" value="${state.savedContact && state.savedContact.manualLink ? state.savedContact.manualLink : ''}">
-      <button type="button" class="secondary-btn" id="manualGeoConfirm" style="margin-top:8px;">${ICONS.check}Подтвердить</button>
-      <div id="manualGeoStatus" style="font-size:12px;color:var(--ink-soft);margin-top:6px;"></div>
-      <div class="manual-geo-hint">Откройте карту, найдите себя на ней, нажмите «Поделиться» → «Копировать ссылку» и вставьте её сюда. Администратор откроет ссылку вручную и уточнит точную стоимость доставки при подтверждении заказа.</div>
+    <div id="pickupInfoWrap" style="display:none;margin-top:10px;">
+      <div style="display:flex;gap:8px;align-items:flex-start;font-size:12.5px;color:var(--ink-soft);background:var(--surface);border-radius:10px;padding:10px 11px;">
+        <span style="flex-shrink:0;width:15px;height:15px;color:var(--accent);margin-top:1px;">${ICONS.pin}</span>
+        <span>${state.pickupAddress ? `Забрать заказ можно по адресу: <b style="color:var(--ink);">${state.pickupAddress}</b>. Часы работы — в шапке приложения.` : 'Адрес самовывоза уточнит администратор после подтверждения заказа.'}</span>
+      </div>
+    </div>
+
+    <div id="deliveryFieldsWrap">
+      <label class="field-label">Адрес доставки</label>
+      <textarea id="fAddress" rows="2" placeholder="Улица, дом, ориентир">${state.savedContact && state.savedContact.address ? state.savedContact.address : ''}</textarea>
+
+      <label class="field-label">Район доставки</label>
+      <div id="zoneList" style="display:flex;flex-direction:column;gap:9px;"></div>
+
+      <label class="field-label">Геопозиция (по желанию)</label>
+      <div style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--ink-soft);background:var(--surface);border-radius:10px;padding:9px 10px;margin-bottom:8px;">
+        <span style="flex-shrink:0;width:15px;height:15px;color:var(--accent);margin-top:1px;">${ICONS.pin}</span>
+        <span>Цена определяется районом выше — геопозиция не обязательна и на неё не влияет, но поможет курьеру быстрее найти вас.</span>
+      </div>
+      ${state.savedContact && state.savedContact.point ? `
+      <button type="button" class="secondary-btn" id="useSavedPointBtn">${ICONS.check}Использовать прошлую точку</button>
+      ` : ''}
+      <button type="button" class="secondary-btn" id="geoBtn">${ICONS.pin}Отправить геопозицию</button>
+      <div id="geoStatus" style="font-size:12px;color:var(--ink-soft);margin-top:6px;"></div>
+
+      <button type="button" class="link-toggle ${state.savedContact && state.savedContact.manualLink ? 'open' : ''}" id="manualToggle">${ICONS.chevronDown}Вставить ссылку на карту вместо этого</button>
+      <div class="manual-geo-panel ${state.savedContact && state.savedContact.manualLink ? 'open' : ''}" id="manualGeoPanel">
+        <label class="field-label" style="margin-top:0;">Ссылка на вашу точку на карте</label>
+        <input id="fManualGeo" placeholder="Ссылка из Google Maps / другого приложения карт" value="${state.savedContact && state.savedContact.manualLink ? state.savedContact.manualLink : ''}">
+        <button type="button" class="secondary-btn" id="manualGeoConfirm" style="margin-top:8px;">${ICONS.check}Подтвердить</button>
+        <div id="manualGeoStatus" style="font-size:12px;color:var(--ink-soft);margin-top:6px;"></div>
+        <div class="manual-geo-hint">Пригодится курьеру для точности — на цену доставки не влияет.</div>
+      </div>
     </div>
 
     <label class="field-label">Способ оплаты</label>
     <div id="paymentSection">
-      <div style="font-size:12px;color:var(--ink-soft);">Определится после указания адреса доставки</div>
+      <div style="font-size:12px;color:var(--ink-soft);">Выберите район доставки выше</div>
     </div>
 
     <label class="field-label">Комментарий к заказу</label>
@@ -1385,13 +1418,68 @@ function openCheckout(){
       <div style="display:flex;justify-content:space-between;font-weight:700;margin-top:8px;border-top:1px solid var(--line);padding-top:8px;"><span>Итого</span><span id="totalLine">${subtotal.toLocaleString('ru-RU')} VND</span></div>
     </div>
 
-    <button class="primary-btn" id="submitOrderBtn" disabled>Укажите адрес и геопозицию</button>
+    <button class="primary-btn" id="submitOrderBtn" disabled>Выберите район доставки</button>
   `;
 
   let deliveryFee = null;
   let point = null;
   let manualLink = null;
+  let selectedZone = null; // { name, fee } or { name: null, fee: <max tier>, isFallback: true }
   let paymentMethod = 'cash';
+  let fulfillment = 'delivery'; // 'delivery' | 'pickup'
+
+  sheet.querySelectorAll('input[name="fulfillment"]').forEach(inp => {
+    inp.addEventListener('change', () => {
+      fulfillment = inp.value;
+      sheet.querySelectorAll('[data-fulfillment]').forEach(opt => opt.classList.toggle('selected', opt.dataset.fulfillment === fulfillment));
+      const isPickup = fulfillment === 'pickup';
+      sheet.querySelector('#deliveryFieldsWrap').style.display = isPickup ? 'none' : '';
+      sheet.querySelector('#pickupInfoWrap').style.display = isPickup ? 'block' : 'none';
+      if (isPickup) {
+        deliveryFee = 0;
+        sheet.querySelector('#feeLine').textContent = 'бесплатно';
+      } else {
+        deliveryFee = selectedZone ? selectedZone.fee : null;
+        sheet.querySelector('#feeLine').textContent = deliveryFee !== null ? deliveryFee.toLocaleString('ru-RU') + ' VND' : '—';
+      }
+      updatePaymentSection();
+      recompute();
+    });
+  });
+
+  function renderZoneList(){
+    const el = sheet.querySelector('#zoneList');
+    const zones = state.zones || [];
+    const maxFee = DELIVERY_TIERS[DELIVERY_TIERS.length - 1].fee;
+    const rows = zones.map(z => ({ name: z.name, fee: z.fee, isFallback: false }));
+    rows.push({ name: 'Другой район', fee: maxFee, isFallback: true });
+    el.innerHTML = rows.map((z, i) => `
+      <label class="addon-option" data-zone-idx="${i}">
+        <input type="radio" name="zone" value="${i}" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
+        <span class="addon-radio-dot"></span>
+        <span class="addon-name">${z.name}${z.isFallback ? ' <span style="color:var(--ink-soft);font-weight:400;">(уточнит администратор)</span>' : ''}</span>
+        <span class="addon-price">${z.fee.toLocaleString('ru-RU')} VND</span>
+      </label>
+    `).join('');
+    el.querySelectorAll('input[name="zone"]').forEach((inp, i) => {
+      inp.addEventListener('change', () => selectZone(rows[i], el));
+    });
+    return rows;
+  }
+  const zoneRows = renderZoneList();
+
+  function selectZone(zone, el){
+    el = el || sheet.querySelector('#zoneList');
+    selectedZone = zone;
+    deliveryFee = zone.fee;
+    el.querySelectorAll('.addon-option').forEach(opt => opt.classList.remove('selected'));
+    const idx = zoneRows.indexOf(zone);
+    const optEl = el.querySelector(`[data-zone-idx="${idx}"]`);
+    if (optEl) { optEl.classList.add('selected'); optEl.querySelector('input').checked = true; }
+    sheet.querySelector('#feeLine').textContent = deliveryFee.toLocaleString('ru-RU') + ' VND';
+    updatePaymentSection();
+    recompute();
+  }
 
   function recompute(){
     const total = subtotal + (deliveryFee || 0);
@@ -1400,12 +1488,18 @@ function openCheckout(){
     const addr = sheet.querySelector('#fAddress').value.trim();
     const phone = sheet.querySelector('#fPhone').value.trim();
     const phoneOk = isValidPhone_(phone);
-    const hasLocation = !!point || !!manualLink;
-    if (hasLocation && addr && phoneOk) {
+
+    if (fulfillment === 'pickup') {
+      if (phoneOk) { btn.disabled = false; btn.textContent = 'Заказать'; }
+      else { btn.disabled = true; btn.textContent = 'Укажите корректный телефон'; }
+      return;
+    }
+
+    if (selectedZone && addr && phoneOk) {
       btn.disabled = false; btn.textContent = 'Заказать';
     } else {
       btn.disabled = true;
-      btn.textContent = !phoneOk ? 'Укажите корректный телефон' : (!hasLocation ? 'Отправьте геопозицию или ссылку' : 'Укажите адрес');
+      btn.textContent = !phoneOk ? 'Укажите корректный телефон' : (!selectedZone ? 'Выберите район доставки' : 'Укажите адрес');
     }
   }
 
@@ -1418,11 +1512,9 @@ function openCheckout(){
   function updatePaymentSection(){
     const el = sheet.querySelector('#paymentSection');
     if (!el) return;
-    const maxTierFee = DELIVERY_TIERS[DELIVERY_TIERS.length - 1].fee;
-    const isMaxTier = deliveryFee !== null && deliveryFee === maxTierFee;
     const forcedReason = !state.payment.cashEnabled
       ? 'сейчас принимаются только безналичные заказы'
-      : (isMaxTier ? 'доставка по вашему адресу рассчитана по максимальному тарифу' : null);
+      : (fulfillment === 'delivery' && selectedZone && selectedZone.isFallback ? 'ваш район требует уточнения у администратора' : null);
 
     if (forcedReason) {
       paymentMethod = 'transfer';
@@ -1471,12 +1563,23 @@ function openCheckout(){
     const km = (state.restaurant.lat && state.restaurant.lng)
       ? haversine(state.restaurant.lat, state.restaurant.lng, lat, lng)
       : 0;
-    deliveryFee = deliveryFeeForDistance(km);
-    sheet.querySelector('#feeLine').textContent = deliveryFee.toLocaleString('ru-RU') + ' VND';
-    const msg = `${sourceLabel || 'Геопозиция получена'} (~${km.toFixed(1)} км от кухни). Ссылка: maps.google.com/?q=${lat.toFixed(5)},${lng.toFixed(5)}`;
+    const matched = (state.zones || []).find(z => haversine(z.lat, z.lng, lat, lng) <= z.radius_km);
+    let suggestNote = '';
+    if (matched && !selectedZone) {
+      const idx = zoneRows.findIndex(r => r.name === matched.name && !r.isFallback);
+      if (idx !== -1) { selectZone(zoneRows[idx]); suggestNote = ` · похоже на район «${matched.name}», выбрали его — можно поменять выше`; }
+    }
+    const msg = `Геопозиция получена (~${km.toFixed(1)} км от кухни)${suggestNote}. Ссылка: maps.google.com/?q=${lat.toFixed(5)},${lng.toFixed(5)}`;
     sheet.querySelector('#geoStatus').innerHTML = statusHtml(ICONS.pin, 'var(--accent)', msg);
-    updatePaymentSection();
     recompute();
+  }
+
+  const useSavedPointBtn = sheet.querySelector('#useSavedPointBtn');
+  if (useSavedPointBtn) {
+    useSavedPointBtn.addEventListener('click', () => {
+      const p = state.savedContact.point;
+      applyPoint(p.lat, p.lng, 'Использован прошлый подтверждённый адрес');
+    });
   }
 
   sheet.querySelector('#manualToggle').addEventListener('click', () => {
@@ -1494,15 +1597,13 @@ function openCheckout(){
       manualStatus.innerHTML = statusHtml(ICONS.errorCircle, '#C0392B', 'Вставьте ссылку.');
       return;
     }
-    // No parsing — the link is taken as-is and shown to the admin, who opens
-    // it manually and confirms the exact delivery cost with the customer.
+    // No parsing — the link is taken as-is and shown to the courier for
+    // reference only. Price comes from the district picked above, not from
+    // this link.
     manualLink = raw;
     point = null;
-    deliveryFee = DELIVERY_TIERS[DELIVERY_TIERS.length - 1].fee; // conservative placeholder, admin confirms the real one
-    sheet.querySelector('#feeLine').textContent = deliveryFee.toLocaleString('ru-RU') + ' VND (уточнит администратор)';
     sheet.querySelector('#geoStatus').innerHTML = '';
-    manualStatus.innerHTML = statusHtml(ICONS.check, 'var(--accent)', 'Ссылка сохранена — администратор откроет её вручную и подтвердит точную стоимость доставки.');
-    updatePaymentSection();
+    manualStatus.innerHTML = statusHtml(ICONS.check, 'var(--accent)', 'Ссылка сохранена для курьера.');
     recompute();
   });
 
@@ -1591,17 +1692,15 @@ function openCheckout(){
       }
     } catch(err){ console.error(err); }
 
-    const addressRaw = sheet.querySelector('#fAddress').value.trim();
-    const addressFinal = manualLink ? `${addressRaw}\nСсылка на локацию: ${manualLink}` : addressRaw;
-    const commentRaw = sheet.querySelector('#fComment').value.trim();
-    const commentFinal = manualLink
-      ? `${commentRaw}${commentRaw ? ' | ' : ''}⚠ Геопозиция не была отправлена автоматически — стоимость доставки предварительная (${(deliveryFee||0).toLocaleString('ru-RU')} VND), уточните по ссылке в адресе.`
-      : commentRaw;
+    const addressRaw = fulfillment === 'pickup' ? '' : sheet.querySelector('#fAddress').value.trim();
+    const addressFinal = fulfillment === 'pickup'
+      ? `Самовывоз${state.pickupAddress ? ' — ' + state.pickupAddress : ''}`
+      : (manualLink ? `${addressRaw}\nСсылка на локацию (для курьера): ${manualLink}` : addressRaw);
+    const commentFinal = sheet.querySelector('#fComment').value.trim();
 
-    const maxTierFeeAtSubmit = DELIVERY_TIERS[DELIVERY_TIERS.length - 1].fee;
     const paymentForcedReason = !state.payment.cashEnabled
       ? 'отключена оплата наличными'
-      : ((deliveryFee === maxTierFeeAtSubmit) ? 'дальняя доставка' : null);
+      : (fulfillment === 'delivery' && selectedZone && selectedZone.isFallback ? 'район требует уточнения у администратора' : null);
 
     const payload = {
       telegram_user_id: tgUser ? tgUser.id : '',
@@ -1609,10 +1708,12 @@ function openCheckout(){
       telegram_display_name: tgUser ? [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') : '',
       phone: sheet.querySelector('#fPhone').value.trim(),
       address: addressFinal,
-      lat: point ? point.lat : '',
-      lng: point ? point.lng : '',
+      lat: fulfillment === 'pickup' ? '' : (point ? point.lat : ''),
+      lng: fulfillment === 'pickup' ? '' : (point ? point.lng : ''),
       items: state.cart,
       subtotal, delivery_fee: deliveryFee || 0, total: subtotal + (deliveryFee || 0),
+      delivery_zone: fulfillment === 'pickup' ? '' : (selectedZone ? (selectedZone.isFallback ? 'Другой район (уточнить)' : selectedZone.name) : ''),
+      fulfillment_type: fulfillment,
       original_subtotal: originalSubtotal,
       combo_discount: comboDiscount || 0,
       payment_method: paymentMethod,
@@ -1626,11 +1727,15 @@ function openCheckout(){
         state.cart = [];
         csSet(CS_KEY_CART, state.cart);
         updateCartBadge();
-        state.savedContact = { phone: payload.phone, address: addressRaw, manualLink: manualLink || '' };
+        state.savedContact = {
+          phone: payload.phone, address: addressRaw, manualLink: manualLink || '',
+          point: point ? { lat: point.lat, lng: point.lng } : null
+        };
         csSet(CS_KEY_CONTACT, state.savedContact);
         closeOverlay('checkoutOverlay');
-        if (tg) tg.showAlert('Ваш заказ принят. Доставка будет в течение часа. По дополнительным вопросам вы можете обратиться к администратору @svoyakuhnyaVN');
-        else alert('Ваш заказ принят. Доставка будет в течение часа. По дополнительным вопросам вы можете обратиться к администратору @svoyakuhnyaVN');
+        const fulfillmentNote = fulfillment === 'pickup' ? 'Заказ будет готов к самовывозу в течение часа.' : 'Доставка будет в течение часа.';
+        if (tg) tg.showAlert('Ваш заказ принят. ' + fulfillmentNote + ' По дополнительным вопросам вы можете обратиться к администратору @svoyakuhnyaVN');
+        else alert('Ваш заказ принят. ' + fulfillmentNote + ' По дополнительным вопросам вы можете обратиться к администратору @svoyakuhnyaVN');
       } else if (res.error === 'insufficient_stock') {
         alert('Не хватает на складе: ' + res.details.map(d => d.name).join(', '));
         btn.disabled = false; btn.textContent = 'Заказать';
