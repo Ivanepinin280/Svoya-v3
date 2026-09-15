@@ -505,11 +505,13 @@ let state = {
   cart: [],       // { id, name, price, qty, addon, addon_extra }
   history: [],
   activeTab: 'catalog',
-  deliveryPoint: null // { lat, lng }
+  deliveryPoint: null, // { lat, lng }
+  savedContact: null // { phone, address }
 };
 
 const CS_KEY_FAV = 'sk_favorites';
 const CS_KEY_CART = 'sk_cart';
+const CS_KEY_CONTACT = 'sk_contact'; // saved phone/address so customers don't retype every order
 
 // CloudStorage requires Bot API 6.9+. Outside real Telegram (plain browser testing)
 // or on older Telegram clients, calling it throws synchronously — always fall back
@@ -603,6 +605,7 @@ async function init(){
   try {
     state.favorites = (await csGet(CS_KEY_FAV)) || [];
     state.cart = (await csGet(CS_KEY_CART)) || [];
+    state.savedContact = (await csGet(CS_KEY_CONTACT)) || null; // { phone, address }
 
     const minWait = wait(SPLASH_SLIDE_MS * 2); // floor so at least 2 captions show, even on a fast connection
 
@@ -722,6 +725,19 @@ function normalizeCatKey_(s){
 // names (e.g. "Пюре, Макароны") that only applies to this one dish's row —
 // choosing that same garnish text on a different, unrelated dish never
 // counts, even though the option text is shared.
+// Finds a standalone Menu item whose name matches the given text (used to
+// check stock for a garnish/sauce/topping that also exists as its own dish —
+// e.g. "Пюре" offered both as a side on its own and as a garnish elsewhere).
+function findMenuItemByName_(name){
+  if (!name) return null;
+  const norm = normalizeCatKey_(name);
+  return state.items.find(i => normalizeCatKey_(i.name) === norm) || null;
+}
+
+// True if this exact garnish/topping option is currently unavailable,
+// because it also exists as its own dish and that dish is out of stock or
+// marked unavailable. Options with no matching standalone dish are always
+// considered available (nothing to check against).
 function isDishGarnishComboEligible_(item, addonName){
   if (!addonName || !item || !item.combo_garnish_names) return false;
   const allowed = item.combo_garnish_names.toString().split(',')
@@ -736,6 +752,27 @@ function isDishGarnishComboEligible_(item, addonName){
 // touching its quantity). Blank/TRUE/missing column = normal stock rules.
 function isItemMarkedUnavailable_(item){
   return String(item.is_available).trim().toUpperCase() === 'FALSE';
+}
+
+// An addon option (garnish/sauce/topping) whose stock_link_id points to a
+// real standalone dish is only selectable while that dish itself is in
+// stock — same shared inventory, so it can't be oversold through the addon
+// path while the dish itself shows "нет в наличии".
+// An addon option (garnish/sauce/topping) is unavailable if it's out of
+// stock as its own dish. Two ways this is detected: an explicit
+// stock_link_id on the Addons row (unambiguous), or — with zero extra
+// setup — automatically matching the option's text against a standalone
+// Menu item of the same name (e.g. "Пюре" offered both as its own side and
+// as a garnish elsewhere shares the same inventory).
+function isAddonOptionOutOfStock_(option){
+  if (!option) return false;
+  if (option.stock_link_id) {
+    const linked = state.items.find(i => String(i.id) === String(option.stock_link_id));
+    if (linked) return (Number(linked.stock) || 0) <= 0 || isItemMarkedUnavailable_(linked);
+  }
+  const match = findMenuItemByName_(option.option_name);
+  if (!match) return false;
+  return (Number(match.stock) || 0) <= 0 || isItemMarkedUnavailable_(match);
 }
 
 function getItemCategory_(item){
@@ -924,7 +961,7 @@ function renderCard(item, idx){
     qty = Math.max(0, qty - 1); qtyVal.textContent = qty;
   });
   el.querySelector('[data-qty-plus]').addEventListener('click', () => {
-    qty = Math.min(stock || 99, qty + 1); qtyVal.textContent = qty;
+    qty = Math.min(stock, qty + 1); qtyVal.textContent = qty;
   });
   el.querySelectorAll('[data-open]').forEach(n => n.addEventListener('click', () => openItemSheet(item)));
   el.querySelector('[data-fav]').addEventListener('click', () => toggleFavorite(item.id));
@@ -966,6 +1003,7 @@ function openItemSheet(item, presetQty=0){
   const addonOptions = addonGroup ? addonGroup.options : [];
   const stock = Number(item.stock) || 0;
   const outOfStock = stock <= 0 || isItemMarkedUnavailable_(item);
+  const allAddonsOutOfStock = addonOptions.length > 0 && addonOptions.every(a => isAddonOptionOutOfStock_(a));
   const inputType = isMulti ? 'checkbox' : 'radio';
 
   sheet.innerHTML = `
@@ -982,14 +1020,17 @@ function openItemSheet(item, presetQty=0){
         <span>Отмеченные варианты засчитываются в скидку «Собери комбо»</span>
       </div>` : ''}
       <div id="addonList" style="display:flex;flex-direction:column;gap:9px;">
-        ${addonOptions.map((a,i) => `
-          <label class="addon-option ${(!isMulti && i===0) ? 'selected' : ''}">
-            <input type="${inputType}" name="addon" value="${i}" ${(!isMulti && i===0) ? 'checked' : ''} style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
+        ${addonOptions.map((a,i) => {
+          const outOfStock = isAddonOptionOutOfStock_(a);
+          const isDefault = !isMulti && i === addonOptions.findIndex(o => !isAddonOptionOutOfStock_(o));
+          return `
+          <label class="addon-option ${isDefault ? 'selected' : ''}" style="${outOfStock ? 'opacity:.45;pointer-events:none;' : ''}">
+            <input type="${inputType}" name="addon" value="${i}" ${isDefault ? 'checked' : ''} ${outOfStock ? 'disabled' : ''} style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
             <span class="${isMulti ? 'addon-check-box' : 'addon-radio-dot'}">${isMulti ? ICONS.check : ''}</span>
             <span class="addon-name">${a.option_name}${isDishGarnishComboEligible_(item, a.option_name) ? ` <span class="addon-combo-badge">${ICONS.percentBadge}−10%</span>` : ''}</span>
-            <span class="addon-price">${a.price_extra ? (a.price_extra > 0 ? '+' + a.price_extra.toLocaleString('ru-RU') : '−' + Math.abs(a.price_extra).toLocaleString('ru-RU')) + ' VND' : ''}</span>
+            <span class="addon-price">${outOfStock ? 'нет в наличии' : (a.price_extra ? (a.price_extra > 0 ? '+' + a.price_extra.toLocaleString('ru-RU') : '−' + Math.abs(a.price_extra).toLocaleString('ru-RU')) + ' VND' : '')}</span>
           </label>
-        `).join('')}
+        `; }).join('')}
       </div>
     ` : ''}
     <div class="add-row" style="margin-top:16px;">
@@ -998,8 +1039,8 @@ function openItemSheet(item, presetQty=0){
         <span id="sheetQtyVal">${presetQty}</span>
         <button id="sheetQtyPlus">${ICONS.plus}</button>
       </div>
-      <button class="add-btn" id="sheetAddBtn" style="flex:1;margin-left:12px;justify-content:center;" ${outOfStock?'disabled':''}>
-        ${outOfStock ? '' : ICONS.cartAdd}${outOfStock ? 'Нет в наличии' : 'Добавить в корзину'}
+      <button class="add-btn" id="sheetAddBtn" style="flex:1;margin-left:12px;justify-content:center;" ${(outOfStock || allAddonsOutOfStock)?'disabled':''}>
+        ${(outOfStock || allAddonsOutOfStock) ? '' : ICONS.cartAdd}${outOfStock ? 'Нет в наличии' : (allAddonsOutOfStock ? 'Гарниры недоступны' : 'Добавить в корзину')}
       </button>
     </div>
   `;
@@ -1022,7 +1063,7 @@ function openItemSheet(item, presetQty=0){
   let qty = presetQty;
   const qtyVal = sheet.querySelector('#sheetQtyVal');
   sheet.querySelector('#sheetQtyMinus').addEventListener('click', () => { qty = Math.max(0, qty-1); qtyVal.textContent = qty; });
-  sheet.querySelector('#sheetQtyPlus').addEventListener('click', () => { qty = Math.min(stock||99, qty+1); qtyVal.textContent = qty; });
+  sheet.querySelector('#sheetQtyPlus').addEventListener('click', () => { qty = Math.min(stock, qty+1); qtyVal.textContent = qty; });
   sheet.querySelector('#sheetAddBtn').addEventListener('click', () => {
     const addQty = Math.max(1, qty); // always adds at least 1, even if the stepper was left at 0
     let addon = null, addonExtra = 0;
@@ -1236,6 +1277,16 @@ document.querySelectorAll('.sheet-overlay').forEach(ov => {
 /* =========================================================
    CHECKOUT
 ========================================================= */
+// Real phone validation: counts actual digits (ignoring spaces/dashes/+),
+// requires a plausible length, and rejects obvious junk like "00000000" or
+// "11111111" that the old loose regex let through.
+function isValidPhone_(raw){
+  const digits = (raw || '').replace(/[^0-9]/g, '');
+  if (digits.length < 8 || digits.length > 12) return false;
+  if (/^(\d)\1+$/.test(digits)) return false; // all the same digit
+  return true;
+}
+
 function haversine(lat1, lng1, lat2, lng2){
   const R = 6371;
   const dLat = (lat2-lat1) * Math.PI/180;
@@ -1262,13 +1313,13 @@ function openCheckout(){
     <div class="font-display" style="font-size:19px;font-weight:700;">Оформление заказа</div>
 
     <label class="field-label">Telegram</label>
-    <input id="fUsername" value="${tgUser ? '@' + (tgUser.username || tgUser.first_name) : ''}" readonly>
+    <input id="fUsername" value="${tgUser ? (tgUser.username ? '@' + tgUser.username : [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') + ' (нет username)') : 'не определён'}" readonly style="background:var(--surface-dim);color:var(--ink-soft);">
 
     <label class="field-label">Номер телефона</label>
-    <input id="fPhone" type="tel" placeholder="+84 ...">
+    <input id="fPhone" type="tel" placeholder="+84 ..." value="${state.savedContact && state.savedContact.phone ? state.savedContact.phone : ''}">
 
     <label class="field-label">Адрес доставки</label>
-    <textarea id="fAddress" rows="2" placeholder="Улица, дом, ориентир"></textarea>
+    <textarea id="fAddress" rows="2" placeholder="Улица, дом, ориентир">${state.savedContact && state.savedContact.address ? state.savedContact.address : ''}</textarea>
 
     <label class="field-label">Геопозиция</label>
     <div style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--ink-soft);background:var(--surface);border-radius:10px;padding:9px 10px;margin-bottom:8px;">
@@ -1278,10 +1329,10 @@ function openCheckout(){
     <button type="button" class="secondary-btn" id="geoBtn">${ICONS.pin}Отправить мою геопозицию</button>
     <div id="geoStatus" style="font-size:12px;color:var(--ink-soft);margin-top:6px;"></div>
 
-    <button type="button" class="link-toggle" id="manualToggle">${ICONS.chevronDown}Не получилось отправить геопозицию?</button>
-    <div class="manual-geo-panel" id="manualGeoPanel">
+    <button type="button" class="link-toggle ${state.savedContact && state.savedContact.manualLink ? 'open' : ''}" id="manualToggle">${ICONS.chevronDown}Не получилось отправить геопозицию?</button>
+    <div class="manual-geo-panel ${state.savedContact && state.savedContact.manualLink ? 'open' : ''}" id="manualGeoPanel">
       <label class="field-label" style="margin-top:0;">Ссылка на вашу точку на карте</label>
-      <input id="fManualGeo" placeholder="Ссылка из Google Maps / другого приложения карт">
+      <input id="fManualGeo" placeholder="Ссылка из Google Maps / другого приложения карт" value="${state.savedContact && state.savedContact.manualLink ? state.savedContact.manualLink : ''}">
       <button type="button" class="secondary-btn" id="manualGeoConfirm" style="margin-top:8px;">${ICONS.check}Подтвердить</button>
       <div id="manualGeoStatus" style="font-size:12px;color:var(--ink-soft);margin-top:6px;"></div>
       <div class="manual-geo-hint">Откройте карту, найдите себя на ней, нажмите «Поделиться» → «Копировать ссылку» и вставьте её сюда. Администратор откроет ссылку вручную и уточнит точную стоимость доставки при подтверждении заказа.</div>
@@ -1317,7 +1368,7 @@ function openCheckout(){
     const btn = sheet.querySelector('#submitOrderBtn');
     const addr = sheet.querySelector('#fAddress').value.trim();
     const phone = sheet.querySelector('#fPhone').value.trim();
-    const phoneOk = /^\+?[0-9\s-]{8,15}$/.test(phone);
+    const phoneOk = isValidPhone_(phone);
     const hasLocation = !!point || !!manualLink;
     if (hasLocation && addr && phoneOk) {
       btn.disabled = false; btn.textContent = 'Заказать';
@@ -1469,14 +1520,40 @@ function openCheckout(){
     btn.disabled = true;
     btn.textContent = 'Отправка...';
 
-    // Final stock re-check right before sending the order
-    const ids = state.cart.map(c => c.id).join(',');
+    // Final stock re-check right before sending the order — covers both the
+    // dishes themselves and any garnish/sauce/topping that's linked (via
+    // stock_link_id) to a standalone dish, so a garnish that sold out in the
+    // last few minutes can't slip through either.
+    const linkedChecks = []; // { id, qty, label }
+    state.cart.forEach(c => {
+      if (!c.addon) return;
+      const parentItem = state.items.find(i => String(i.id) === String(c.id));
+      const group = parentItem && parentItem.addon_group ? state.addons[parentItem.addon_group] : null;
+      if (!group) return;
+      c.addon.split(',').forEach(part => {
+        const name = part.trim();
+        const opt = group.options.find(o => o.option_name === name);
+        if (!opt) return;
+        if (opt.stock_link_id) {
+          linkedChecks.push({ id: opt.stock_link_id, qty: c.qty, label: `${c.name} (${name})` });
+        } else {
+          const matched = findMenuItemByName_(opt.option_name);
+          if (matched) linkedChecks.push({ id: matched.id, qty: c.qty, label: `${c.name} (${name})` });
+        }
+      });
+    });
+
+    const idSet = new Set(state.cart.map(c => c.id));
+    linkedChecks.forEach(l => idSet.add(l.id));
+    const ids = Array.from(idSet).join(',');
     try {
       const stockRes = await apiGet('checkStock', { ids });
       if (stockRes.ok) {
         const shortages = state.cart.filter(c => (stockRes.data[c.id] ?? 0) < c.qty);
-        if (shortages.length) {
-          alert('К сожалению, часть блюд уже раскупили: ' + shortages.map(s => s.name).join(', ') + '. Обновите корзину.');
+        const linkedShortages = linkedChecks.filter(l => (stockRes.data[l.id] ?? 0) < l.qty);
+        if (shortages.length || linkedShortages.length) {
+          const names = [...shortages.map(s => s.name), ...linkedShortages.map(l => l.label)];
+          alert('К сожалению, часть блюд/гарниров уже раскупили: ' + names.join(', ') + '. Обновите корзину.');
           btn.disabled = false; btn.textContent = 'Заказать';
           return;
         }
@@ -1498,6 +1575,7 @@ function openCheckout(){
     const payload = {
       telegram_user_id: tgUser ? tgUser.id : '',
       telegram_username: tgUser ? tgUser.username : '',
+      telegram_display_name: tgUser ? [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') : '',
       phone: sheet.querySelector('#fPhone').value.trim(),
       address: addressFinal,
       lat: point ? point.lat : '',
@@ -1517,6 +1595,8 @@ function openCheckout(){
         state.cart = [];
         csSet(CS_KEY_CART, state.cart);
         updateCartBadge();
+        state.savedContact = { phone: payload.phone, address: addressRaw, manualLink: manualLink || '' };
+        csSet(CS_KEY_CONTACT, state.savedContact);
         closeOverlay('checkoutOverlay');
         if (tg) tg.showAlert('Ваш заказ принят. Доставка будет в течение часа. По дополнительным вопросам вы можете обратиться к администратору @svoyakuhnyaVN');
         else alert('Ваш заказ принят. Доставка будет в течение часа. По дополнительным вопросам вы можете обратиться к администратору @svoyakuhnyaVN');
