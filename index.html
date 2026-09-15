@@ -600,6 +600,22 @@ function stopSplashCarousel(){
 
 function wait(ms){ return new Promise(r => setTimeout(r, ms)); }
 
+async function fetchMenuWithRetry_(maxAttempts=3){
+  let lastError = null;
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+    try {
+      const res = await apiGet('getMenu');
+      if (res && res.ok) return res;
+      lastError = res; // got a response, but ok:false — Apps Script hiccup, worth retrying
+    } catch(e) {
+      lastError = e; // network error / non-JSON response (e.g. a transient Apps Script error page)
+    }
+    if (attempt < maxAttempts) await wait(700 * attempt); // 700ms, then 1400ms
+  }
+  console.error('getMenu failed after retries:', lastError);
+  return null;
+}
+
 async function init(){
   startSplashCarousel();
   try {
@@ -609,20 +625,16 @@ async function init(){
 
     const minWait = wait(SPLASH_SLIDE_MS * 2); // floor so at least 2 captions show, even on a fast connection
 
-    try {
-      const menuRes = await apiGet('getMenu');
-      if (menuRes.ok) {
-        state.items = menuRes.data.items;
-        state.addons = menuRes.data.addons;
-        state.restaurant = menuRes.data.restaurant;
-        if (menuRes.data.payment) state.payment = menuRes.data.payment;
-        document.getElementById('hoursLine').textContent =
-          `${menuRes.data.hours.weekday} · ${menuRes.data.hours.weekend}`;
-      } else {
-        showToast('Ошибка загрузки меню');
-      }
-    } catch(e){
-      console.error(e); showToast('Не удалось связаться с сервером');
+    const menuRes = await fetchMenuWithRetry_();
+    if (menuRes && menuRes.ok) {
+      state.items = menuRes.data.items;
+      state.addons = menuRes.data.addons;
+      state.restaurant = menuRes.data.restaurant;
+      if (menuRes.data.payment) state.payment = menuRes.data.payment;
+      document.getElementById('hoursLine').textContent =
+        `${menuRes.data.hours.weekday} · ${menuRes.data.hours.weekend}`;
+    } else {
+      showToast('Не удалось загрузить меню — потяните вниз или откройте заново');
     }
 
     await minWait;
@@ -794,7 +806,26 @@ function renderCatalog(){
 
   if (state.items.length === 0) {
     empty.style.display = 'block';
-    empty.textContent = 'Меню пока пусто.';
+    empty.innerHTML = `
+      <div>Не удалось загрузить меню.</div>
+      <button type="button" class="secondary-btn" id="retryMenuBtn" style="max-width:220px;margin:14px auto 0;">${ICONS.list}Повторить</button>
+    `;
+    const retryBtn = document.getElementById('retryMenuBtn');
+    if (retryBtn) retryBtn.addEventListener('click', async () => {
+      retryBtn.disabled = true; retryBtn.textContent = 'Загрузка…';
+      const menuRes = await fetchMenuWithRetry_();
+      if (menuRes && menuRes.ok) {
+        state.items = menuRes.data.items;
+        state.addons = menuRes.data.addons;
+        state.restaurant = menuRes.data.restaurant;
+        if (menuRes.data.payment) state.payment = menuRes.data.payment;
+        renderTab();
+      } else {
+        showToast('Снова не получилось — проверьте соединение');
+        retryBtn.disabled = false;
+        retryBtn.innerHTML = `${ICONS.list}Повторить`;
+      }
+    });
     return;
   }
   empty.style.display = 'none';
@@ -1323,13 +1354,13 @@ function openCheckout(){
 
     <label class="field-label">Геопозиция</label>
     <div style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--ink-soft);background:var(--surface);border-radius:10px;padding:9px 10px;margin-bottom:8px;">
-      <span style="flex-shrink:0;width:15px;height:15px;color:var(--accent);margin-top:1px;">${ICONS.warning}</span>
-      <span>При нажатии кнопки ниже Telegram спросит разрешение на доступ к геолокации — нажмите «Разрешить» / «Allow», иначе рассчитать доставку и оформить заказ не получится.</span>
+      <span style="flex-shrink:0;width:15px;height:15px;color:var(--accent);margin-top:1px;">${ICONS.pin}</span>
+      <span>Точная геопозиция помогает быстрее рассчитать доставку. Не хотите делиться ей через Telegram — не проблема, ниже можно указать адрес вручную.</span>
     </div>
-    <button type="button" class="secondary-btn" id="geoBtn">${ICONS.pin}Отправить мою геопозицию</button>
+    <button type="button" class="secondary-btn" id="geoBtn">${ICONS.pin}Отправить геопозицию (по желанию)</button>
     <div id="geoStatus" style="font-size:12px;color:var(--ink-soft);margin-top:6px;"></div>
 
-    <button type="button" class="link-toggle ${state.savedContact && state.savedContact.manualLink ? 'open' : ''}" id="manualToggle">${ICONS.chevronDown}Не получилось отправить геопозицию?</button>
+    <button type="button" class="link-toggle ${state.savedContact && state.savedContact.manualLink ? 'open' : ''}" id="manualToggle">${ICONS.chevronDown}Указать адрес вручную по ссылке на карту</button>
     <div class="manual-geo-panel ${state.savedContact && state.savedContact.manualLink ? 'open' : ''}" id="manualGeoPanel">
       <label class="field-label" style="margin-top:0;">Ссылка на вашу точку на карте</label>
       <input id="fManualGeo" placeholder="Ссылка из Google Maps / другого приложения карт" value="${state.savedContact && state.savedContact.manualLink ? state.savedContact.manualLink : ''}">
