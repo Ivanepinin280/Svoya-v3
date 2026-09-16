@@ -1377,14 +1377,9 @@ function openCheckout(){
     <div id="deliveryFieldsWrap">
       <label class="field-label">Адрес доставки</label>
       <textarea id="fAddress" rows="2" placeholder="Улица, дом, ориентир">${state.savedContact && state.savedContact.address ? state.savedContact.address : ''}</textarea>
-
-      <label class="field-label">Район доставки</label>
-      <div id="zoneList" style="display:flex;flex-direction:column;gap:9px;"></div>
-
-      <label class="field-label">Геопозиция (по желанию)</label>
-      <div style="display:flex;gap:8px;align-items:flex-start;font-size:12px;color:var(--ink-soft);background:var(--surface);border-radius:10px;padding:9px 10px;margin-bottom:8px;">
-        <span style="flex-shrink:0;width:15px;height:15px;color:var(--accent);margin-top:1px;">${ICONS.pin}</span>
-        <span>Цена определяется районом выше — геопозиция не обязательна и на неё не влияет, но поможет курьеру быстрее найти вас.</span>
+      <div style="display:flex;gap:8px;align-items:flex-start;font-size:11.5px;color:var(--ink-soft);margin:6px 2px 8px;">
+        <span style="flex-shrink:0;width:13px;height:13px;color:var(--accent);margin-top:1px;">${ICONS.pin}</span>
+        <span>По желанию уточните адрес геопозицией или ссылкой на карту — курьеру будет проще вас найти.</span>
       </div>
       ${state.savedContact && state.savedContact.point ? `
       <button type="button" class="secondary-btn" id="useSavedPointBtn">${ICONS.check}Использовать прошлую точку</button>
@@ -1400,6 +1395,9 @@ function openCheckout(){
         <div id="manualGeoStatus" style="font-size:12px;color:var(--ink-soft);margin-top:6px;"></div>
         <div class="manual-geo-hint">Пригодится курьеру для точности — на цену доставки не влияет.</div>
       </div>
+
+      <label class="field-label">Район доставки</label>
+      <div id="zoneList" style="display:flex;flex-direction:column;gap:9px;"></div>
     </div>
 
     <label class="field-label">Способ оплаты</label>
@@ -1458,7 +1456,7 @@ function openCheckout(){
         <input type="radio" name="zone" value="${i}" style="position:absolute;opacity:0;width:0;height:0;pointer-events:none;">
         <span class="addon-radio-dot"></span>
         <span class="addon-name">${z.name}${z.isFallback ? ' <span style="color:var(--ink-soft);font-weight:400;">(уточнит администратор)</span>' : ''}</span>
-        <span class="addon-price">${z.fee.toLocaleString('ru-RU')} VND</span>
+        <span class="addon-price">${z.isFallback ? '' : 'от '}${z.fee.toLocaleString('ru-RU')} VND</span>
       </label>
     `).join('');
     el.querySelectorAll('input[name="zone"]').forEach((inp, i) => {
@@ -1563,7 +1561,13 @@ function openCheckout(){
     const km = (state.restaurant.lat && state.restaurant.lng)
       ? haversine(state.restaurant.lat, state.restaurant.lng, lat, lng)
       : 0;
-    const matched = (state.zones || []).find(z => haversine(z.lat, z.lng, lat, lng) <= z.radius_km);
+    // If the point falls inside more than one zone circle (overlapping
+    // areas), suggest the more expensive/farther one rather than whichever
+    // zone happens to be listed first — safer default than under-charging.
+    const allMatches = (state.zones || []).filter(z => haversine(z.lat, z.lng, lat, lng) <= z.radius_km);
+    const matched = allMatches.length
+      ? allMatches.reduce((farthest, z) => (z.fee > farthest.fee ? z : farthest))
+      : null;
     let suggestNote = '';
     if (matched && !selectedZone) {
       const idx = zoneRows.findIndex(r => r.name === matched.name && !r.isFallback);
