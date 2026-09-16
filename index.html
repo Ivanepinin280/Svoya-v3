@@ -1579,19 +1579,7 @@ function openCheckout(){
     const km = (state.restaurant.lat && state.restaurant.lng)
       ? haversine(state.restaurant.lat, state.restaurant.lng, lat, lng)
       : 0;
-    // If the point falls inside more than one zone circle (overlapping
-    // areas), suggest the more expensive/farther one rather than whichever
-    // zone happens to be listed first — safer default than under-charging.
-    const allMatches = (state.zones || []).filter(z => haversine(z.lat, z.lng, lat, lng) <= z.radius_km);
-    const matched = allMatches.length
-      ? allMatches.reduce((farthest, z) => (z.fee > farthest.fee ? z : farthest))
-      : null;
-    let suggestNote = '';
-    if (matched && !selectedZone) {
-      const idx = zoneRows.findIndex(r => r.name === matched.name && !r.isFallback);
-      if (idx !== -1) { selectZone(zoneRows[idx]); suggestNote = ` · похоже на район «${matched.name}», выбрали его — можно поменять выше`; }
-    }
-    const msg = `Геопозиция получена (~${km.toFixed(1)} км от кухни)${suggestNote}. Ссылка: maps.google.com/?q=${lat.toFixed(5)},${lng.toFixed(5)}`;
+    const msg = `Геопозиция получена (~${km.toFixed(1)} км от кухни). Выберите свой район ниже. Ссылка: maps.google.com/?q=${lat.toFixed(5)},${lng.toFixed(5)}`;
     sheet.querySelector('#geoStatus').innerHTML = statusHtml(ICONS.pin, 'var(--accent)', msg);
     recompute();
   }
@@ -1755,7 +1743,7 @@ function openCheckout(){
         };
         csSet(CS_KEY_CONTACT, state.savedContact);
         closeOverlay('checkoutOverlay');
-        const fulfillmentNote = fulfillment === 'pickup' ? 'Заказ будет готов к самовывозу в течение часа.' : 'Доставка будет в течение часа.В час пик время доставки может увеличится до 1,5 часов';
+        const fulfillmentNote = fulfillment === 'pickup' ? 'Заказ будет готов к самовывозу в течение часа.' : 'Доставка будет в течение часа.';
         if (tg) tg.showAlert('Ваш заказ принят. ' + fulfillmentNote + ' По дополнительным вопросам вы можете обратиться к администратору @svoyakuhnyaVN');
         else alert('Ваш заказ принят. ' + fulfillmentNote + ' По дополнительным вопросам вы можете обратиться к администратору @svoyakuhnyaVN');
       } else if (res.error === 'insufficient_stock') {
