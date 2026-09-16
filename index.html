@@ -1412,8 +1412,8 @@ function openCheckout(){
       ${comboProgress ? `<div class="combo-banner" style="margin:0 0 12px;">${ICONS.percentBadge}<span>Добавьте ещё <b>${COMBO_MIN_ITEMS - comboCount}</b> ${pluralDish(COMBO_MIN_ITEMS - comboCount)} из «Собери комбо» для скидки 10%.</span></div>` : ''}
       <div style="display:flex;justify-content:space-between;font-size:13px;"><span>Сумма блюд</span><span>${originalSubtotal.toLocaleString('ru-RU')} VND</span></div>
       ${comboDiscount ? `<div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px;color:var(--accent);font-weight:600;"><span>Скидка на комбо</span><span>−${comboDiscount.toLocaleString('ru-RU')} VND</span></div>` : ''}
-      <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px;"><span>Доставка</span><span id="feeLine">—</span></div>
-      <div style="display:flex;justify-content:space-between;font-weight:700;margin-top:8px;border-top:1px solid var(--line);padding-top:8px;"><span>Итого</span><span id="totalLine">${subtotal.toLocaleString('ru-RU')} VND</span></div>
+      <div style="display:flex;justify-content:space-between;font-size:13px;margin-top:4px;"><span id="feeLabel">Доставка</span><span id="feeLine">—</span></div>
+      <div style="display:flex;justify-content:space-between;font-weight:700;margin-top:8px;border-top:1px solid var(--line);padding-top:8px;"><span id="totalLabel">Итого</span><span id="totalLine">${subtotal.toLocaleString('ru-RU')} VND</span></div>
     </div>
 
     <button class="primary-btn" id="submitOrderBtn" disabled>Выберите район доставки</button>
@@ -1435,10 +1435,8 @@ function openCheckout(){
       sheet.querySelector('#pickupInfoWrap').style.display = isPickup ? 'block' : 'none';
       if (isPickup) {
         deliveryFee = 0;
-        sheet.querySelector('#feeLine').textContent = 'бесплатно';
       } else {
         deliveryFee = selectedZone ? selectedZone.fee : null;
-        sheet.querySelector('#feeLine').textContent = deliveryFee !== null ? deliveryFee.toLocaleString('ru-RU') + ' VND' : '—';
       }
       updatePaymentSection();
       recompute();
@@ -1474,14 +1472,34 @@ function openCheckout(){
     const idx = zoneRows.indexOf(zone);
     const optEl = el.querySelector(`[data-zone-idx="${idx}"]`);
     if (optEl) { optEl.classList.add('selected'); optEl.querySelector('input').checked = true; }
-    sheet.querySelector('#feeLine').textContent = deliveryFee.toLocaleString('ru-RU') + ' VND';
     updatePaymentSection();
     recompute();
   }
 
   function recompute(){
     const total = subtotal + (deliveryFee || 0);
-    sheet.querySelector('#totalLine').textContent = total.toLocaleString('ru-RU') + ' VND';
+    const feeLineEl = sheet.querySelector('#feeLine');
+    const totalLabelEl = sheet.querySelector('#totalLabel');
+    const totalLineEl = sheet.querySelector('#totalLine');
+
+    if (fulfillment === 'pickup') {
+      feeLineEl.textContent = 'бесплатно';
+      totalLabelEl.textContent = 'Итого';
+      totalLineEl.textContent = total.toLocaleString('ru-RU') + ' VND';
+    } else if (selectedZone && selectedZone.isFallback) {
+      feeLineEl.textContent = 'уточнит администратор';
+      totalLabelEl.textContent = 'Итого — ориентировочно';
+      totalLineEl.textContent = total.toLocaleString('ru-RU') + ' VND';
+    } else if (selectedZone) {
+      feeLineEl.textContent = 'от ' + deliveryFee.toLocaleString('ru-RU') + ' VND';
+      totalLabelEl.textContent = 'Итого — ориентировочно';
+      totalLineEl.textContent = total.toLocaleString('ru-RU') + ' VND';
+    } else {
+      feeLineEl.textContent = '—';
+      totalLabelEl.textContent = 'Итого';
+      totalLineEl.textContent = total.toLocaleString('ru-RU') + ' VND';
+    }
+
     const btn = sheet.querySelector('#submitOrderBtn');
     const addr = sheet.querySelector('#fAddress').value.trim();
     const phone = sheet.querySelector('#fPhone').value.trim();
