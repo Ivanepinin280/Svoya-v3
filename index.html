@@ -1755,7 +1755,7 @@ function openCheckout(){
         };
         csSet(CS_KEY_CONTACT, state.savedContact);
         closeOverlay('checkoutOverlay');
-        const fulfillmentNote = fulfillment === 'pickup' ? 'Заказ будет готов к самовывозу в течение часа.' : 'Доставка будет в течение часа.';
+        const fulfillmentNote = fulfillment === 'pickup' ? 'Заказ будет готов к самовывозу в течение часа.' : 'Доставка будет в течение часа.В час пик время доставки может увеличится до 1,5 часов';
         if (tg) tg.showAlert('Ваш заказ принят. ' + fulfillmentNote + ' По дополнительным вопросам вы можете обратиться к администратору @svoyakuhnyaVN');
         else alert('Ваш заказ принят. ' + fulfillmentNote + ' По дополнительным вопросам вы можете обратиться к администратору @svoyakuhnyaVN');
       } else if (res.error === 'insufficient_stock') {
