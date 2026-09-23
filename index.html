@@ -621,13 +621,21 @@ async function fetchMenuWithRetry_(maxAttempts=3){
 async function init(){
   startSplashCarousel();
   try {
-    state.favorites = (await csGet(CS_KEY_FAV)) || [];
-    state.cart = (await csGet(CS_KEY_CART)) || [];
-    state.savedContact = (await csGet(CS_KEY_CONTACT)) || null; // { phone, address }
+    const minWait = wait(500); // small floor just to avoid an instant flash-and-gone splash, not a real delay
 
-    const minWait = wait(SPLASH_SLIDE_MS * 2); // floor so at least 2 captions show, even on a fast connection
+    // Run everything that doesn't depend on anything else in parallel,
+    // instead of waiting for CloudStorage reads before even starting the
+    // menu fetch — this alone can cut load time roughly in half.
+    const [favRes, cartRes, contactRes, menuRes] = await Promise.all([
+      csGet(CS_KEY_FAV),
+      csGet(CS_KEY_CART),
+      csGet(CS_KEY_CONTACT),
+      fetchMenuWithRetry_()
+    ]);
+    state.favorites = favRes || [];
+    state.cart = cartRes || [];
+    state.savedContact = contactRes || null; // { phone, address }
 
-    const menuRes = await fetchMenuWithRetry_();
     if (menuRes && menuRes.ok) {
       state.items = menuRes.data.items;
       state.addons = menuRes.data.addons;
