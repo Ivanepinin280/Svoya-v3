@@ -552,19 +552,32 @@ function csSet(key, value){
 /* =========================================================
    API HELPERS
 ========================================================= */
-async function apiGet(action, params={}){
+async function apiGet(action, params={}, timeoutMs=8000){
   const url = new URL(API_URL);
   url.searchParams.set('action', action);
   Object.entries(params).forEach(([k,v]) => url.searchParams.set(k, v));
-  const res = await fetch(url.toString());
-  return res.json();
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(url.toString(), { signal: controller.signal });
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
 }
-async function apiPost(action, payload){
-  const res = await fetch(API_URL, {
-    method:'POST',
-    body: JSON.stringify({ action, payload })
-  });
-  return res.json();
+async function apiPost(action, payload, timeoutMs=15000){
+  const controller = new AbortController();
+  const timer = setTimeout(() => controller.abort(), timeoutMs);
+  try {
+    const res = await fetch(API_URL, {
+      method:'POST',
+      body: JSON.stringify({ action, payload }),
+      signal: controller.signal
+    });
+    return await res.json();
+  } finally {
+    clearTimeout(timer);
+  }
 }
 
 /* =========================================================
@@ -620,22 +633,19 @@ async function fetchMenuWithRetry_(maxAttempts=3){
 
 async function init(){
   startSplashCarousel();
+
+  // Kick these off but don't block the menu on them — favorites/cart just
+  // affect a heart icon and a badge count, not whether the menu itself can
+  // show. Whichever finishes first (usually the menu) determines how soon
+  // the customer sees dishes on screen.
+  const favPromise = csGet(CS_KEY_FAV);
+  const cartPromise = csGet(CS_KEY_CART);
+  const contactPromise = csGet(CS_KEY_CONTACT);
+
   try {
     const minWait = wait(500); // small floor just to avoid an instant flash-and-gone splash, not a real delay
 
-    // Run everything that doesn't depend on anything else in parallel,
-    // instead of waiting for CloudStorage reads before even starting the
-    // menu fetch — this alone can cut load time roughly in half.
-    const [favRes, cartRes, contactRes, menuRes] = await Promise.all([
-      csGet(CS_KEY_FAV),
-      csGet(CS_KEY_CART),
-      csGet(CS_KEY_CONTACT),
-      fetchMenuWithRetry_()
-    ]);
-    state.favorites = favRes || [];
-    state.cart = cartRes || [];
-    state.savedContact = contactRes || null; // { phone, address }
-
+    const menuRes = await fetchMenuWithRetry_();
     if (menuRes && menuRes.ok) {
       state.items = menuRes.data.items;
       state.addons = menuRes.data.addons;
@@ -650,7 +660,7 @@ async function init(){
     }
 
     await minWait;
-    renderTab();
+    renderTab(); // shows the menu — dish images start loading right here, without waiting on anything else
     updateCartBadge();
   } catch(e){
     console.error('init() failed:', e);
@@ -659,6 +669,21 @@ async function init(){
     // is never stuck on a frozen loading screen.
     stopSplashCarousel();
     document.getElementById('splash').classList.add('hide');
+  }
+
+  // Favorites/cart/contact usually resolve almost instantly, but they run
+  // independently of the menu now — apply them whenever they land and patch
+  // the already-visible menu (heart icons, cart badge) instead of having
+  // made the customer wait for them up front.
+  try {
+    const [favRes, cartRes, contactRes] = await Promise.all([favPromise, cartPromise, contactPromise]);
+    state.favorites = favRes || [];
+    state.cart = cartRes || [];
+    state.savedContact = contactRes || null; // { phone, address }
+    if (state.items.length > 0) renderTab(); // re-render so favorite hearts reflect the real saved state
+    updateCartBadge();
+  } catch(e){
+    console.error('Favorites/cart load failed:', e);
   }
 }
 
