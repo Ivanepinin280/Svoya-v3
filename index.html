@@ -1743,7 +1743,8 @@ function openCheckout(){
         };
         csSet(CS_KEY_CONTACT, state.savedContact);
         closeOverlay('checkoutOverlay');
-        const fulfillmentNote = fulfillment === 'pickup' ? 'Заказ будет готов к самовывозу в течение часа.' : 'Доставка будет в течение часа.Из засильных дождей доставка может задерживаться до полутра часов. Просим отнестись с пониманием';
+        const weatherNote = ' В связи с погодными условиями доставка может задерживаться до получаса — просим отнестись с пониманием.';
+        const fulfillmentNote = fulfillment === 'pickup' ? 'Заказ будет готов к самовывозу в течение часа.' : ('Доставка будет в течение часа.' + weatherNote);
         if (tg) tg.showAlert('Ваш заказ принят. ' + fulfillmentNote + ' По дополнительным вопросам вы можете обратиться к администратору @svoyakuhnyaVN');
         else alert('Ваш заказ принят. ' + fulfillmentNote + ' По дополнительным вопросам вы можете обратиться к администратору @svoyakuhnyaVN');
       } else if (res.error === 'insufficient_stock') {
