@@ -565,7 +565,7 @@ async function apiGet(action, params={}, timeoutMs=8000){
     clearTimeout(timer);
   }
 }
-async function apiPost(action, payload, timeoutMs=15000){
+async function apiPost(action, payload, timeoutMs=28000){
   const controller = new AbortController();
   const timer = setTimeout(() => controller.abort(), timeoutMs);
   try {
@@ -1458,6 +1458,10 @@ function openCheckout(){
   let selectedZone = null; // { name, fee } or { name: null, fee: <max tier>, isFallback: true }
   let paymentMethod = 'cash';
   let fulfillment = 'delivery'; // 'delivery' | 'pickup'
+  // One token per checkout attempt, reused across retries (e.g. after a
+  // network timeout) so the server can recognize "this is the same order
+  // being resubmitted" and never create a duplicate.
+  const clientOrderToken = 'ord_' + Date.now() + '_' + Math.random().toString(36).slice(2, 10);
 
   sheet.querySelectorAll('input[name="fulfillment"]').forEach(inp => {
     inp.addEventListener('change', () => {
@@ -1746,6 +1750,7 @@ function openCheckout(){
       : (fulfillment === 'delivery' && selectedZone && selectedZone.isFallback ? 'район требует уточнения у администратора' : null);
 
     const payload = {
+      client_token: clientOrderToken,
       telegram_user_id: tgUser ? tgUser.id : '',
       telegram_username: tgUser ? tgUser.username : '',
       telegram_display_name: tgUser ? [tgUser.first_name, tgUser.last_name].filter(Boolean).join(' ') : '',
@@ -1789,7 +1794,7 @@ function openCheckout(){
       }
     } catch(err){
       console.error(err);
-      alert('Ошибка сети. Проверьте соединение и попробуйте снова.');
+      alert('Не удалось дождаться ответа сервера. Если заказ уже успел обработаться на сервере, повторная отправка ничего не задвоит — можно спокойно нажать «Заказать» ещё раз.');
       btn.disabled = false; btn.textContent = 'Заказать';
     }
   });
